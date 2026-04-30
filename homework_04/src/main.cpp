@@ -58,9 +58,7 @@ int main(int argc, char** argv) {
     double x = 0;
     double y = 0;
     double theta = 0;
-    int line_count = 0;
     while (inputFile >> timestamp_ms >> fl_ticks >> fr_ticks >> bl_ticks >> br_ticks) {
-        line_count++;
 
         long d_fl = fl_ticks - prev_fl_ticks;
         long d_fr = fr_ticks - prev_fr_ticks;
@@ -91,7 +89,7 @@ int main(int argc, char** argv) {
         prev_br_ticks = br_ticks;
 
     }
-    LOG("Calculations finished! Total lines processed: " << line_count);
+    LOG("Calculations finished!");
 
 
     return 0;
