@@ -3,7 +3,7 @@
 #include <fstream>
 #include <cmath>
 
-#define ENABLE_LOG 1
+#define ENABLE_LOG 0
 #define ENABLE_DEBUG 0
 #define ENABLE_ERROR 1
 
@@ -73,6 +73,10 @@ int main(int argc, char** argv) {
         double dR = d_right * distance_per_tick;
 
         double d = (dL + dR) / 2.0;
+        if (wheelbase_m == 0){
+          ERROR_LOG("You cannot divide by zero!");
+          return 1;
+        }
         double d_theta = (dR - dL) / wheelbase_m;
         x += d * cos(theta + d_theta/2);
         y += d * sin(theta + d_theta/2);
