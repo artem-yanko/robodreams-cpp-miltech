@@ -119,7 +119,8 @@ int read_frames(const char* path, Frame frames[], int max_frames) {
             throw std::runtime_error("invalid frame format");
         }
         } catch (const std::exception& e) {
-          std::cerr << "error: invalid frame at line " << line_number << ": \n   " << e.what() << '\n';
+          std::cerr << "ERROR: invalid frame at line " << line_number << ": \n   " << e.what() << '\n';
+          // return frame_count < 0 to indicate error for man function.
           return -1;
         }
     }

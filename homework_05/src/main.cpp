@@ -11,9 +11,14 @@ int main(int argc, char** argv) {
 
     Frame frames[MAX_TELEMETRY_FRAMES];
     const int frame_count = read_frames(argv[1], frames, MAX_TELEMETRY_FRAMES);
-    // Exit when catch exception.
+    // Exit when catch exception during validation.
     if (frame_count < 0) {
-      return 1;
+        return 1;
+    }
+    // Exit when telemetry log is empty.
+    if (frame_count == 0) {
+        std::cerr << "ERROR: empty telemetry log: " << argv[1] << '\n';
+        return 1;
     }
     try {
         const Summary summary = summarize(frames, frame_count);
