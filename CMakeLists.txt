@@ -1,5 +1,24 @@
 cmake_minimum_required(VERSION 3.20)
 
+# БЛОК ТЕСТУВАННЯ
+if(NOT CMAKE_CROSSCOMPILING)
+
+    # Увмкнення тестів
+    enable_testing()
+
+    # Завантаження GTest
+    include(FetchContent)
+    FetchContent_Declare(
+      googletest
+      GIT_REPOSITORY https://github.com/google/googletest.git
+      GIT_TAG        v1.15.2
+      DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+
+endif()
+
 # Загальний CMake-проєкт для матеріалів блоку 2.
 # Кожна homework_* директорія підключається окремо.
 project(section2 LANGUAGES CXX)
@@ -17,6 +36,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Домашні роботи. По мірі появи додаємо кожну окремим add_subdirectory.
 add_subdirectory(homework_04)
 add_subdirectory(homework_05)
+add_subdirectory(homework_06)
 
 # Demo-код для заняття 2.4: локальне і віддалене відлагодження через GDB.
 add_subdirectory(demos/lesson_2_4/debug_probe)
