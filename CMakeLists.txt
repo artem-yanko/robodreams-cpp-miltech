@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 
 # БЛОК ТЕСТУВАННЯ
+# Увмкнення тестів
+enable_testing()
 if(NOT CMAKE_CROSSCOMPILING)
-
-    # Увмкнення тестів
-    enable_testing()
 
     # Завантаження GTest
     include(FetchContent)
@@ -25,6 +24,7 @@ project(section2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Домашні роботи. По мірі появи додаємо кожну окремим add_subdirectory.
