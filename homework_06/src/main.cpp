@@ -16,7 +16,7 @@ int main(int argc, char** argv)
 
   // Розрахунок баллістики
   if (!calculateBallitsics(input, result)) {
-    std::cerr << "ERROR: Не вдалося розрахувати баллістику." << std::endl;
+    std::cerr << "ERROR: Не вдалося розрахувати баллістику." << '\n';
     return 1;
   }
 

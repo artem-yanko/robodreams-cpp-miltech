@@ -34,13 +34,13 @@ void readFile(const char* filename, BallisticsInput& input)
 {
   std::ifstream inputFile(filename);
   if (!inputFile) {
-    std::cerr << "ERROR: Перевірте наявність файлу \"" << filename << "\"!" << std::endl;
+    std::cerr << "ERROR: Перевірте наявність файлу \"" << filename << "\"!" << '\n';
     exit(1);
   }
 
   if (!(inputFile >> input.xd >> input.yd >> input.zd >> input.targetX >> input.targetY >> input.attackSpeed >> input.accelerationPath >>
         input.ammoName)) {
-    std::cerr << "ERROR: Невірний формат даних у файлі \"" << filename << "\"!" << std::endl;
+    std::cerr << "ERROR: Невірний формат даних у файлі \"" << filename << "\"!" << '\n';
     exit(1);
   }
 }
@@ -49,14 +49,14 @@ void writeFile(const char* filename, const BallisticsResult& result)
 {
   std::ofstream outputFile(filename);
   if (!outputFile) {
-    std::cerr << "ERROR: Не вдалося відкрити файл \"" << filename << "\" для запису!" << std::endl;
+    std::cerr << "ERROR: Не вдалося відкрити файл \"" << filename << "\" для запису!" << '\n';
     exit(1);
   }
 
   if (result.needManeuver) {
     outputFile << result.maneuverX << " " << result.maneuverY << " ";
   }
-  outputFile << result.fireX << " " << result.fireY << std::endl;
+  outputFile << result.fireX << " " << result.fireY << '\n';
 }
 
 double calculateDistanceToTarger(double targetX, double targetY, double xd, double yd)
@@ -94,7 +94,7 @@ bool calculateTimeOfFlight(const AmmoParams* ammo, double attackSpeed, double zd
 
   double acosArg = acosArg1 * acosArg2;
   if (acosArg > 1 || acosArg < -1) {
-    std::cerr << "ERROR: Невірне значення для арккосинуса: " << acosArg << std::endl;
+    std::cerr << "ERROR: Невірне значення для арккосинуса: " << acosArg << '\n';
     return false;
   }
 
@@ -102,7 +102,7 @@ bool calculateTimeOfFlight(const AmmoParams* ammo, double attackSpeed, double zd
 
   time = 2 * sqrt(-p / 3) * cos((phi + 4 * M_PI) / 3) - b / (3 * a);
   if (time <= 0) {
-    std::cerr << "ERROR: невірний розрахунок часу польоту: " << time << std::endl;
+    std::cerr << "ERROR: невірний розрахунок часу польоту: " << time << '\n';
     return false;
   }
 
@@ -122,11 +122,9 @@ double calculateHorizontalDistance(const AmmoParams* ammo, double attackSpeed, d
 
   double lift2 = ammo->lift * ammo->lift;
   double lift3 = lift2 * ammo->lift;
-  double lift4 = lift3 * ammo->lift;
 
   double mass2 = ammo->mass * ammo->mass;
   double mass3 = mass2 * ammo->mass;
-  double mass4 = mass3 * ammo->mass;
 
   // V₀t − t²d·V₀/(2m)
   double part1 = attackSpeed * time - ((time2 * (ammo->drag * attackSpeed))) / (2.0 * ammo->mass);
@@ -151,12 +149,12 @@ double calculateHorizontalDistance(const AmmoParams* ammo, double attackSpeed, d
 bool calculateBallitsics(const BallisticsInput& input, BallisticsResult& result)
 {
   if (input.zd <= 0) {
-    std::cerr << "ERROR: Висота дрона повинна бути більшою за нуль." << std::endl;
+    std::cerr << "ERROR: Висота дрона повинна бути більшою за нуль." << '\n';
     return false;
   }
 
   if (input.attackSpeed <= 0) {
-    std::cerr << "ERROR: Швидкість атаки повинна бути більшою за нуль." << std::endl;
+    std::cerr << "ERROR: Швидкість атаки повинна бути більшою за нуль." << '\n';
     return false;
   }
 
@@ -168,17 +166,17 @@ bool calculateBallitsics(const BallisticsInput& input, BallisticsResult& result)
   const int ammoCount = 5;
   const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, input.ammoName);
   if (selectedAmmo == nullptr) {
-    std::cerr << "ERROR: Невідомий тип боєприпасу: " << input.ammoName << std::endl;
+    std::cerr << "ERROR: Невідомий тип боєприпасу: " << input.ammoName << '\n';
     return false;
   }
   if (!(calculateTimeOfFlight(selectedAmmo, input.attackSpeed, input.zd, flightTime))) {
-    std::cerr << "ERROR: Неправильна умова розрахунку часу польоту" << std::endl;
+    std::cerr << "ERROR: Неправильна умова розрахунку часу польоту" << '\n';
     return false;
   }
   double horizontalDistance = calculateHorizontalDistance(selectedAmmo, input.attackSpeed, flightTime);
   double distanceToTarget = calculateDistanceToTarger(input.targetX, input.targetY, initX, initY);
   if (distanceToTarget <= 0) {
-    std::cerr << "ERROR: Дистанція дрон-ціль має бути більше за 0. Поточна дистанція: " << distanceToTarget << std::endl;
+    std::cerr << "ERROR: Дистанція дрон-ціль має бути більше за 0. Поточна дистанція: " << distanceToTarget << '\n';
     return false;
   }
 
