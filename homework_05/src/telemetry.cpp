@@ -42,7 +42,7 @@ long parse_long(const char* text) {
     char* end = nullptr;
     const long value = std::strtol(text, &end, 10);
     // Trow an exception when value is invalid.
-    if (end == text) {
+    if (end == text || *end != '\0') {
         throw std::runtime_error("invalid long value: " + std::string(text));
     }
 
@@ -57,9 +57,9 @@ double parse_double(const char* text) {
     char* end = nullptr;
     const double value = std::strtod(text, &end);
         // Trow an exception when value is invalid.
-        if (end == text) {
-            throw std::runtime_error("invalid double value: " + std::string(text));
-        }
+    if (end == text || *end != '\0') {
+        throw std::runtime_error("invalid double value: " + std::string(text));
+    }
 
 
     return value;
@@ -99,7 +99,7 @@ int read_frames(const char* path, Frame frames[], int max_frames) {
     std::ifstream input{path};
     if (!input) {
         std::cerr << "error: failed to open input file: " << path << '\n';
-        return 0;
+        return -1;
     }
 
     int frame_count = 0;
@@ -113,11 +113,40 @@ int read_frames(const char* path, Frame frames[], int max_frames) {
 
         try {
             if (frame_count < max_frames) {
-            frames[frame_count] = parse_frame(line);
-            ++frame_count;
-        } else {
-            throw std::runtime_error("invalid frame format");
-        }
+                frames[frame_count] = parse_frame(line);
+
+                // Basic telemetry validation required by homework spec.
+                // Validate timestamp_ms is increasing.
+                if (frame_count > 0) {
+                    if (frames[frame_count].timestamp_ms <= frames[frame_count - 1].timestamp_ms) {
+                        throw std::runtime_error("timestamp_ms must increase");
+                    }
+                // Validate seq is increasing by 1.
+                    if (frames[frame_count].seq != frames[frame_count - 1].seq + 1) {
+                        throw std::runtime_error("seq must increase by 1");
+                    }
+                }
+                // Validate voltage_v is positive.
+                if (frames[frame_count].voltage_v <= 0.0) {
+                    throw std::runtime_error("voltage_v must be positive");
+                }
+                // Validate temperature_c is within valid range.
+                if (frames[frame_count].temperature_c < -40.0 || frames[frame_count].temperature_c > 120.0) {
+                    throw std::runtime_error("temperature_c out of range [-40, 120]");
+                }
+                // Validate gps_fix is 0 or 1.
+                if (frames[frame_count].gps_fix != 0 && frames[frame_count].gps_fix != 1) {
+                    throw std::runtime_error("gps_fix must be 0 or 1");
+                }
+                // Validate satellites equal or grater than zero.
+                if (frames[frame_count].satellites < 0) {
+                    throw std::runtime_error("satellites must be equal or grater than zero");
+                }
+
+                ++frame_count;
+            } else {
+                throw std::runtime_error("invalid frame format");
+            }
         } catch (const std::exception& e) {
           std::cerr << "ERROR: invalid frame at line " << line_number << ": \n   " << e.what() << '\n';
           // return frame_count < 0 to indicate error for man function.
