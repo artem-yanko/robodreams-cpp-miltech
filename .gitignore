@@ -13,8 +13,6 @@ compile_commands.json
 install_manifest.txt
 _deps/
 
-# Мінімальний набір compiled/debug артефактів для C++ прикладів.
-*.d
 *.o
 *.obj
 *.a
@@ -32,4 +30,4 @@ core.*
 .DS_Store
 Thumbs.db
 homework_03
-ugv_odometry
+.idea
