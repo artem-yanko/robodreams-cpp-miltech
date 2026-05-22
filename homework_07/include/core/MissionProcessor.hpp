@@ -25,4 +25,5 @@ private:
     AmmoParams* ammoList{};
     int ammoCount{};
     int currentIndex{};
+    double simulationTime{};
 };

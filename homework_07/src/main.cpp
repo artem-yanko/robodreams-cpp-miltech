@@ -1,35 +1,32 @@
 #include <iostream>
 
-#include "providers/AnalyticalSolver.hpp"
-#include "providers/JsonConfigLoader.hpp"
+#include "core/ComponentFactory.hpp"
 
 int main() {
-    AnalyticalSolver solver;
-    JsonConfigLoader jsonConfigLoader;
+    JsonConfigLoader* configLoader = ComponentFactory::createConfigLoader();
+    JsonTargetProvider* targetProvider = ComponentFactory::createTargetProvider();
+    AnalyticalSolver* solver = ComponentFactory::createSolver();
 
-    Coord dronePos{0.0, 0.0};
-    Target target{};
-    target.position = {100.0, 50.0};
-    target.velocity = {0.0, 0.0};
-
-    AmmoParams ammo{};
-    ammo.mass = 0.35;
-    ammo.drag = 0.08;
-    ammo.lift = 0.15;
-
-    const double altitude = 120.0;
-    const double attackSpeed = 22.0;
-
-    BallisticsResult result = solver.solve(dronePos, target, altitude, attackSpeed, ammo);
-    DroneConfig config;
-    if (!jsonConfigLoader.loadConfig(config)) {
-        std::cerr << "Failed to load config" << std::endl;
+    MissionProcessor* mission = ComponentFactory::createMissionProcessor(targetProvider, solver, configLoader);
+    if (!mission->init()) {
+        std::cerr << "Failed to initialize mission" << std::endl;
+        delete mission;
+        delete solver;
+        delete targetProvider;
+        delete configLoader;
         return 1;
     }
 
-    std::cout << "flight_time " << result.flightTime << '\n';
-    std::cout << "horizontal_distance " << result.horizontalDistance << '\n';
-    std::cout << "config attackSpeed " << config.attackSpeed << '\n';
+    while (mission->hasNext()) {
+        BallisticsResult result = mission->step();
+        std::cout << "flight_time " << result.flightTime << '\n';
+        std::cout << "horizontal_distance " << result.horizontalDistance << '\n';
+    }
+
+    delete mission;
+    delete solver;
+    delete targetProvider;
+    delete configLoader;
 
     return 0;
 }

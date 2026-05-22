@@ -14,7 +14,12 @@ add_library(mission_processor src/core/MissionProcessor.cpp)
 target_include_directories(mission_processor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(mission_processor PRIVATE -Wall -Wextra -pedantic)
 
+add_library(component_factory src/core/ComponentFactory.cpp)
+target_include_directories(component_factory PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(component_factory PUBLIC analytical_solver json_config_loader json_target_provider mission_processor)
+target_compile_options(component_factory PRIVATE -Wall -Wextra -pedantic)
+
 add_executable(mission_runner_app src/main.cpp)
 target_include_directories(mission_runner_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(mission_runner_app PRIVATE analytical_solver json_config_loader json_target_provider mission_processor)
+target_link_libraries(mission_runner_app PRIVATE component_factory)
 target_compile_options(mission_runner_app PRIVATE -Wall -Wextra -pedantic)

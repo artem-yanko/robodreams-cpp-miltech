@@ -13,10 +13,12 @@ MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* s
         ammoList = nullptr;
         ammoCount = 0;
         currentIndex = 0;
+        simulationTime = 0.0;
     }
 
 bool MissionProcessor::init() {
     currentIndex = 0;
+    simulationTime = 0.0;
     if (!configLoader->loadConfig(config)) {
         ERROR_LOG("Failed to load drone configuration");
         return false;
@@ -31,6 +33,11 @@ bool MissionProcessor::init() {
         return false;
     }
     LOG("Ammo parameters loaded: " << ammoCount);
+
+    if (!targets->loadTargets(config.arrayTimeStep)) {
+        ERROR_LOG("Failed to load targets");
+        return false;
+    }
 
     return true;
 }
@@ -49,6 +56,7 @@ static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, c
 }
 
 BallisticsResult MissionProcessor::step() {
+    targets->setSimulationTime(simulationTime);
     Target target = targets->getTarget(currentIndex);
     
     const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
@@ -59,14 +67,15 @@ BallisticsResult MissionProcessor::step() {
 
     BallisticsResult result = solver->solve(config.startPos, target, config.altitude, config.attackSpeed, *selectedAmmo);
     currentIndex++;
+    simulationTime += config.simTimeStep;
     return result;
 }
 
 void MissionProcessor::reset() {
     currentIndex = 0;
+    simulationTime = 0.0;
 }
 
 void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
     solver = newSolver;
 }
-
