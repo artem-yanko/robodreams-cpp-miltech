@@ -4,9 +4,8 @@
 
 class ITargetProvider {
 public:
-    virtual bool loadTargets(double arrayTimeStep) = 0;
-    virtual void setSimulationTime(double time) = 0;
+    virtual bool loadTargets() = 0;
     virtual int getTargetCount() = 0;
-    virtual Target getTarget(int index) = 0;
+    virtual const TargetData& getTargetsData() = 0;
     virtual ~ITargetProvider() {};
 };

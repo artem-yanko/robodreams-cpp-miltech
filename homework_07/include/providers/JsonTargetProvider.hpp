@@ -1,21 +1,16 @@
 #pragma once
 
-  #include "interfaces/ITargetProvider.hpp"
+#include "interfaces/ITargetProvider.hpp"
 
-  class JsonTargetProvider : public ITargetProvider {
-  public:
-      ~JsonTargetProvider() override;
+class JsonTargetProvider : public ITargetProvider {
+public:
+    ~JsonTargetProvider() override;
+    bool loadTargets() override;
+    int getTargetCount() override;
+    const TargetData& getTargetsData() override;
 
-      bool loadTargets(double arrayTimeStep) override;
-      void setSimulationTime(double time) override;
+private:
+    void clearTargets();
 
-      int getTargetCount() override;
-      Target getTarget(int index) override;
-
-  private:
-      void clearTargets();
-
-      TargetData targets{};
-      double arrayTimeStep{};
-      double simulationTime{};
-  };
+    TargetData targets{};
+};
