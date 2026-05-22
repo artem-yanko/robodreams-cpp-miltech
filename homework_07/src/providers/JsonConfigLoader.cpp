@@ -1,5 +1,5 @@
 #include "providers/JsonConfigLoader.hpp"
-#include "utils/logging.hpp"
+#include "utils/logger.hpp"
 #include <fstream>
 #include <cstring>
 #include "utils/json.hpp"

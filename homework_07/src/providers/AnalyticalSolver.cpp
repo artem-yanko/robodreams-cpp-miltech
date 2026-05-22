@@ -1,5 +1,5 @@
 #include "providers/AnalyticalSolver.hpp"
-#include "utils/logging.hpp"
+#include "utils/logger.hpp"
 #include <cmath>
 
 const double gravity = 9.81;
