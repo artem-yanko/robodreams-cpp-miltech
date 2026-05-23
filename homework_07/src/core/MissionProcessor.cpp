@@ -68,12 +68,33 @@ BallisticsResult MissionProcessor::step() {
     }
 
     BallisticsResult result = solver->solve(config.startPos, target, config.altitude, config.attackSpeed, *selectedAmmo);
+
     Coord predictedPos = analyzer.predictTargetPosition(target, result.flightTime);
-    LOG("Predicted target position at impact: (" << predictedPos.x << "," << predictedPos.y << ")");
-    
-    currentIndex++;
-    simulationTime += config.simTimeStep;
-    return result;
+    DEBUG("Predicted target position at impact: (" << predictedPos.x << "," << predictedPos.y << ")");
+
+    Coord dropPoint;
+    Coord maneuverPoint;
+    bool needManeuver;
+    analyzer.calculateDropPoint(dropPoint, maneuverPoint, needManeuver, predictedPos, config.startPos, result.horizontalDistance, config.accelPath);
+    DEBUG("Calculated drop point: (" << dropPoint.x << "," << dropPoint.y << ")");
+
+    BestTargetResult best{};
+    DroneMotionState droneMotion{};
+    double acceleration = 0.0;
+    bool returningFromManuver = false;
+
+    for (int i = 0; i < targets->getTargetCount(); ++i) {
+        analyzer.evaluateTarget(best, config, droneMotion, targets->getTargetsData(), i, config.startPos, simulationTime, result, acceleration, returningFromManuver);
+
+        DEBUG("Evaluating target " << i
+                << ": totalTime=" << best.totalTime
+                << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
+                << ", needManeuver=" << best.needManeuver);
+    }
+        
+        currentIndex++;
+        simulationTime += config.simTimeStep;
+        return result;
 }
 
 void MissionProcessor::reset() {
