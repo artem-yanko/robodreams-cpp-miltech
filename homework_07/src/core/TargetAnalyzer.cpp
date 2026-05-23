@@ -49,10 +49,18 @@ static bool calculateTargetVelocity(int targetIndex, const TargetData& targets, 
   return true;
 }
 
-void TargetAnalyzer::clearAnalysis() {
-  // clear analysis
-}
+Target TargetAnalyzer::analyzeTarget(int targetIndex, const TargetData& targets, double simulationTime, double arrayTimeStep) {
+  Target result{};
 
-TargetAnalyzer::~TargetAnalyzer() {
-  clearAnalysis();
+  if (!interpolateTargetPosition(targetIndex, targets, simulationTime, arrayTimeStep, result.position)) {
+    ERROR_LOG("Помилка при інтерполяції позиції цілі.");
+    return result;
+  }
+
+  if (!calculateTargetVelocity(targetIndex, targets, simulationTime, arrayTimeStep, result.velocity)) {
+    ERROR_LOG("Помилка при розрахунку швидкості цілі.");
+    return result;
+  }
+
+  return result;
 }

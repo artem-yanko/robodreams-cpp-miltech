@@ -1,6 +1,8 @@
 #include "core/MissionProcessor.hpp"
+#include "core/TargetAnalyzer.hpp"
 #include "utils/logger.hpp"
 #include <cstring>
+#include <cmath>
 
 MissionProcessor::~MissionProcessor() {
     if (ammoList) {
@@ -34,7 +36,7 @@ bool MissionProcessor::init() {
     }
     LOG("Ammo parameters loaded: " << ammoCount);
 
-    if (!targets->loadTargets(config.arrayTimeStep)) {
+    if (!targets->loadTargets()) {
         ERROR_LOG("Failed to load targets");
         return false;
     }
@@ -56,8 +58,8 @@ static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, c
 }
 
 BallisticsResult MissionProcessor::step() {
-    targets->setSimulationTime(simulationTime);
-    Target target = targets->getTarget(currentIndex);
+    TargetAnalyzer analyzer;
+    Target target = analyzer.analyzeTarget(currentIndex, targets->getTargetsData(), simulationTime, config.arrayTimeStep);
     
     const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
     if (selectedAmmo == nullptr) {

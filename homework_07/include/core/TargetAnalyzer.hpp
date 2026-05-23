@@ -4,12 +4,5 @@
 
 class TargetAnalyzer {
 public:
-    TargetAnalyzer();
-    bool getTarget();
-    ~TargetAnalyzer();
-
-private:
-    void clearAnalysis();
-
-    Target targets;
+     Target analyzeTarget(int targetIndex, const TargetData& targets, double simulationTime, double arrayTimeStep);
 };
