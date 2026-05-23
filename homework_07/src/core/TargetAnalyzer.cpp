@@ -1,6 +1,7 @@
 #include "core/TargetAnalyzer.hpp"
 #include "utils/logger.hpp"
 #include "domain/types.hpp"
+#include <cmath>
 
 static bool interpolateTargetPosition(int targetIndex, const TargetData& targets, double simulationTime, double arrayTimeStep, Coord& targetPos) {
   if (arrayTimeStep == 0.0) {
@@ -63,4 +64,8 @@ Target TargetAnalyzer::analyzeTarget(int targetIndex, const TargetData& targets,
   }
 
   return result;
+}
+
+Coord TargetAnalyzer::predictTargetPosition(const Target& target, double flightTime) {
+  return target.position + target.velocity * flightTime;
 }

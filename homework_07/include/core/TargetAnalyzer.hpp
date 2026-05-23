@@ -5,4 +5,5 @@
 class TargetAnalyzer {
 public:
      Target analyzeTarget(int targetIndex, const TargetData& targets, double simulationTime, double arrayTimeStep);
+     Coord predictTargetPosition(const Target& target, double flightTime);
 };
