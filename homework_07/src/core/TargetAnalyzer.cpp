@@ -3,6 +3,9 @@
 #include "domain/types.hpp"
 #include <cmath>
 
+static const double VERY_LARGE_TIME = 1e18;
+static const double TARGET_SWITCH_PREVENTION = 1.0;
+
 static bool interpolateTargetPosition(int targetIndex, const TargetData& targets, double simulationTime, double arrayTimeStep, Coord& targetPos) {
   if (arrayTimeStep == 0.0) {
     ERROR_LOG("Крок часу масиву цілей не може дорівнювати нулю!");
@@ -282,6 +285,50 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
   best.maneuverPoint = maneuverPoint;
   best.targetPos = target.position;
   best.predictedTarget = predictedTarget;
+
+  return true;
+}
+
+bool TargetAnalyzer::selectBestTarget(BestTargetResult& result, const DroneConfig& config, const DroneMotionState& droneMotion, const Coord& dronePosition, const TargetData& targets, double simulationTime, const BallisticsResult& ballistics, double acceleration, bool returningFromManuver) {
+  result.targetIndex = -1;
+  double minTotalTime = VERY_LARGE_TIME;
+  double currentTargetTotalTime = VERY_LARGE_TIME;
+
+  for (int targetIndex = 0; targetIndex < targets.targetCount; ++targetIndex) {
+    BestTargetResult candidate{};
+    if (!evaluateTarget(candidate, config, droneMotion, targets, targetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
+      DEBUG("Невірний розрахунок для цілі " << targetIndex);
+      continue;
+    }
+
+    if (targetIndex == droneMotion.currentTargetIndex) {
+      currentTargetTotalTime = candidate.totalTime;
+    }
+
+    if (candidate.totalTime < minTotalTime) {
+      minTotalTime = candidate.totalTime;
+      result = candidate;
+    }
+  }
+
+  if (result.targetIndex == -1) {
+    ERROR_LOG("Не знайдено найкращої цілі");
+    return false;
+  }
+
+  if (result.targetIndex != droneMotion.currentTargetIndex && droneMotion.currentTargetIndex != -1) {
+    if (currentTargetTotalTime < VERY_LARGE_TIME && minTotalTime > currentTargetTotalTime - TARGET_SWITCH_PREVENTION) {
+      if (!evaluateTarget(result, config, droneMotion, targets, droneMotion.currentTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
+        DEBUG("Не вдалося сфокусуватися на цілі");
+        return false;
+      }
+    }
+  }
+
+  if (!interpolateTargetPosition(result.targetIndex, targets, simulationTime, config.arrayTimeStep, result.targetPos)) {
+    ERROR_LOG("Невірний розрахунок позиції найкращої цілі");
+    return false;
+  }
 
   return true;
 }

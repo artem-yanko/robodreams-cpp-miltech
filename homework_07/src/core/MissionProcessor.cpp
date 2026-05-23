@@ -59,37 +59,24 @@ static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, c
 
 BallisticsResult MissionProcessor::step() {
     TargetAnalyzer analyzer;
-    Target target = analyzer.analyzeTarget(currentIndex, targets->getTargetsData(), simulationTime, config.arrayTimeStep); // Analyze target position and velocity at current simulation time
     
     const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
     if (selectedAmmo == nullptr) {
         ERROR_LOG("Failed to select ammo parameters");
         return {};
     }
-
-    BallisticsResult result = solver->solve(config.startPos, target, config.altitude, config.attackSpeed, *selectedAmmo);
-
-    Coord predictedPos = analyzer.predictTargetPosition(target, result.flightTime);
-    DEBUG("Predicted target position at impact: (" << predictedPos.x << "," << predictedPos.y << ")");
-
-    Coord dropPoint;
-    Coord maneuverPoint;
-    bool needManeuver;
-    analyzer.calculateDropPoint(dropPoint, maneuverPoint, needManeuver, predictedPos, config.startPos, result.horizontalDistance, config.accelPath);
-    DEBUG("Calculated drop point: (" << dropPoint.x << "," << dropPoint.y << ")");
-
+    BallisticsResult result = solver->solve(config, *selectedAmmo);
     BestTargetResult best{};
     DroneMotionState droneMotion{};
     double acceleration = 0.0;
     bool returningFromManuver = false;
 
-    for (int i = 0; i < targets->getTargetCount(); ++i) {
-        analyzer.evaluateTarget(best, config, droneMotion, targets->getTargetsData(), i, config.startPos, simulationTime, result, acceleration, returningFromManuver);
-
-        DEBUG("Evaluating target " << i
-                << ": totalTime=" << best.totalTime
-                << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
-                << ", needManeuver=" << best.needManeuver);
+    if (analyzer.selectBestTarget(best, config, droneMotion, config.startPos, targets->getTargetsData(), simulationTime, result, acceleration, returningFromManuver)) {
+        DEBUG("Selected target " << best.targetIndex
+            << ": totalTime=" << best.totalTime
+            << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
+            << ", predictedTarget=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")"
+            << ", needManeuver=" << best.needManeuver);
     }
         
         currentIndex++;

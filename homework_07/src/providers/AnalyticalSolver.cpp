@@ -96,11 +96,9 @@ static bool calculateBallistics(BallisticsResult& result, const AmmoParams& ammo
   return true;
 }
 
-BallisticsResult AnalyticalSolver::solve(const Coord& dronePos, const Target& target, double altitude, double attackSpeed, const AmmoParams& ammo) {
-    (void)dronePos;
-    (void)target;
+BallisticsResult AnalyticalSolver::solve(const DroneConfig& config, const AmmoParams& ammo) {
     BallisticsResult result{};
-    if (!calculateBallistics(result, ammo, attackSpeed, altitude)) {
+    if (!calculateBallistics(result, ammo, config.attackSpeed, config.altitude)) {
         ERROR_LOG("Неправильна умова розрахунку балістики");
         return result;
     }
