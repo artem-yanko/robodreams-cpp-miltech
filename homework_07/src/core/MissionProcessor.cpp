@@ -271,10 +271,10 @@ BallisticsResult MissionProcessor::step() {
     bool dropNow = isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
                    && droneMotion.phase == MOVING;
     if (dropNow) {
-        LOG("Умову скиду виконано"
-            << ", ціль #" << best.targetIndex
-            << ", дрон=(" << dronePosition.x << "," << dronePosition.y << ")"
-            << ", точка скиду=(" << best.dropPoint.x << "," << best.dropPoint.y << ")");
+        LOG("Drop condition met"
+            << ", target #" << best.targetIndex
+            << ", drone=(" << dronePosition.x << "," << dronePosition.y << ")"
+            << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")");
         currentIndex = targets->getTargetCount();
         simulationTime += config.simTimeStep;
         return result;

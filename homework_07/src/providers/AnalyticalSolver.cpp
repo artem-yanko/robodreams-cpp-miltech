@@ -69,7 +69,7 @@ static bool calculateTimeOfFlight(const AmmoParams& ammo, double attackSpeed, do
 
   double acosArg = acosArg1 * acosArg2;
   if (acosArg > 1 || acosArg < -1) {
-    ERROR_LOG("Невірне значення для арккосинуса: " << acosArg);
+    ERROR_LOG("Invalid value for arccos: " << acosArg);
     return false;
   }
 
@@ -77,7 +77,7 @@ static bool calculateTimeOfFlight(const AmmoParams& ammo, double attackSpeed, do
 
   flightTime = 2 * sqrt(-p / 3) * cos((phi + 4 * M_PI) / 3) - b / (3 * a);
   if (flightTime <= 0) {
-    ERROR_LOG("Невірний розрахунок часу польоту: " << flightTime);
+    ERROR_LOG("Invalid flight time calculation: " << flightTime);
     return false;
   }
 
@@ -99,10 +99,10 @@ static bool calculateBallistics(BallisticsResult& result, const AmmoParams& ammo
 BallisticsResult AnalyticalSolver::solve(const DroneConfig& config, const AmmoParams& ammo) {
     BallisticsResult result{};
     if (!calculateBallistics(result, ammo, config.attackSpeed, config.altitude)) {
-        ERROR_LOG("Неправильна умова розрахунку балістики");
+        ERROR_LOG("Invalid ballistic calculation conditions");
         return result;
     }
-    LOG("Балістику розраховано: час польоту=" << result.flightTime
-      << ", горизонтальна дистанція=" << result.horizontalDistance);
+    LOG("Ballistics calculated: flightTime=" << result.flightTime
+      << ", horizontalDistance=" << result.horizontalDistance);
     return result;
     }

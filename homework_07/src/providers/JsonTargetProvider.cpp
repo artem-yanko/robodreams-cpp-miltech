@@ -25,7 +25,7 @@ JsonTargetProvider::~JsonTargetProvider() {
 bool JsonTargetProvider::loadTargets() {
   std::ifstream targetsFile("targets.json");
   if (!targetsFile) {
-    ERROR_LOG("Не вдалося відкрити файл \"targets.json\"");
+    ERROR_LOG("Failed to open file \"targets.json\"");
     return false;
   }
 
@@ -37,7 +37,7 @@ bool JsonTargetProvider::loadTargets() {
   targets.targetCount = targetsJson["targetCount"];
   targets.timeSteps = targetsJson["timeSteps"];
   if (targets.targetCount <= 0 || targets.timeSteps <= 0) {
-    ERROR_LOG("Файл \"targets.json\" містить некоректні розміри масиву цілей");
+    ERROR_LOG("File \"targets.json\" contains invalid target arrays");
     return false;
   }
 

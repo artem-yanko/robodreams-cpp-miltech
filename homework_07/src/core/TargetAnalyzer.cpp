@@ -8,15 +8,15 @@ static const double TARGET_SWITCH_PREVENTION = 1.0;
 
 static bool interpolateTargetPosition(int targetIndex, const TargetData& targets, double simulationTime, double arrayTimeStep, Coord& targetPos) {
   if (arrayTimeStep == 0.0) {
-    ERROR_LOG("Крок часу масиву цілей не може дорівнювати нулю!");
+    ERROR_LOG("Target array time step cannot be zero");
     return false;
   }
   if (targetIndex < 0 || targetIndex >= targets.targetCount) {
-    ERROR_LOG("Невірний індекс цілі: " << targetIndex);
+    ERROR_LOG("Invalid target index: " << targetIndex);
     return false;
   }
   if (simulationTime < 0) {
-    ERROR_LOG("Час не може бути від'ємним!");
+    ERROR_LOG("Simulation time cannot be negative");
     return false;
   }
 
@@ -32,7 +32,7 @@ static bool interpolateTargetPosition(int targetIndex, const TargetData& targets
 
 static bool calculateTargetVelocity(int targetIndex, const TargetData& targets, double simulationTime, double arrayTimeStep, Coord& velocity) {
   if (arrayTimeStep == 0.0) {
-    ERROR_LOG("Крок часу масиву цілей не може дорівнювати нулю!");
+    ERROR_LOG("Target array time step cannot be zero");
     return false;
   }
 
@@ -188,12 +188,12 @@ Target TargetAnalyzer::analyzeTarget(int targetIndex, const TargetData& targets,
   Target result{};
 
   if (!interpolateTargetPosition(targetIndex, targets, simulationTime, arrayTimeStep, result.position)) {
-    ERROR_LOG("Помилка при інтерполяції позиції цілі.");
+    ERROR_LOG("Failed to interpolate target position");
     return result;
   }
 
   if (!calculateTargetVelocity(targetIndex, targets, simulationTime, arrayTimeStep, result.velocity)) {
-    ERROR_LOG("Помилка при розрахунку швидкості цілі.");
+    ERROR_LOG("Failed to calculate target velocity");
     return result;
   }
 
@@ -245,7 +245,7 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
   }
 
   if (!estimateTimeToTargetPath(totalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, droneMotion.phase, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, needManeuver, maneuverPoint, dropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold)) {
-    ERROR_LOG("Невірна оцінка часу до точки скиду");
+    ERROR_LOG("Invalid time estimate to drop point");
     return false;
   }
 
@@ -268,7 +268,7 @@ bool TargetAnalyzer::selectBestTarget(BestTargetResult& result, const DroneConfi
   for (int targetIndex = 0; targetIndex < targets.targetCount; ++targetIndex) {
     BestTargetResult candidate{};
     if (!evaluateTarget(candidate, config, droneMotion, targets, targetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
-      DEBUG("Невірний розрахунок для цілі " << targetIndex);
+      DEBUG("Invalid calculation for target " << targetIndex);
       continue;
     }
 
@@ -283,21 +283,21 @@ bool TargetAnalyzer::selectBestTarget(BestTargetResult& result, const DroneConfi
   }
 
   if (result.targetIndex == -1) {
-    ERROR_LOG("Не знайдено найкращої цілі");
+    ERROR_LOG("Failed to find the best target");
     return false;
   }
 
   if (result.targetIndex != droneMotion.currentTargetIndex && droneMotion.currentTargetIndex != -1) {
     if (currentTargetTotalTime < VERY_LARGE_TIME && minTotalTime > currentTargetTotalTime - TARGET_SWITCH_PREVENTION) {
       if (!evaluateTarget(result, config, droneMotion, targets, droneMotion.currentTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
-        DEBUG("Не вдалося сфокусуватися на цілі");
+        DEBUG("Failed to keep focus on the current target");
         return false;
       }
     }
   }
 
   if (!interpolateTargetPosition(result.targetIndex, targets, simulationTime, config.arrayTimeStep, result.targetPos)) {
-    ERROR_LOG("Невірний розрахунок позиції найкращої цілі");
+    ERROR_LOG("Invalid best target position calculation");
     return false;
   }
 

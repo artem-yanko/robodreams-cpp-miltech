@@ -9,7 +9,7 @@ using json = nlohmann::json;
 bool JsonConfigLoader::loadConfig(DroneConfig& config) {
     std::ifstream configFile("config.json");
     if (!configFile) {
-        ERROR_LOG("Не вдалося відкрити файл конфігурації");
+        ERROR_LOG("Failed to open config file");
         return false;
     }
 
@@ -38,7 +38,7 @@ bool JsonConfigLoader::loadConfig(DroneConfig& config) {
 bool JsonConfigLoader::loadAmmo(AmmoParams*& ammoList, int& ammoCount) {
   std::ifstream ammoFile("ammo.json");
   if (!ammoFile) {
-    ERROR_LOG("Не вдалося відкрити файл \"ammo.json\"");
+    ERROR_LOG("Failed to open file \"ammo.json\"");
     return false;
   }
 
@@ -47,7 +47,7 @@ bool JsonConfigLoader::loadAmmo(AmmoParams*& ammoList, int& ammoCount) {
 
   ammoCount = static_cast<int>(ammoJson.size());
   if (ammoCount <= 0) {
-    ERROR_LOG("Файл \"ammo.json\" не містить боєприпасів");
+    ERROR_LOG("File \"ammo.json\" does not contain ammo entries");
     return false;
   }
 
