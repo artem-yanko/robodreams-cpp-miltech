@@ -700,7 +700,7 @@ bool isInsideRadius(const Coord& point, const Coord& center, double radius) {
     return length(point - center) <= radius;
 }
 
-void moveDronToStop(Coord& position, double direction, double distance) {
+void moveDroneToStop(Coord& position, double direction, double distance) {
   position.x += cos(direction) * distance;
   position.y += sin(direction) * distance;
 }
@@ -766,7 +766,7 @@ bool updateDroneMotion(Coord& dronePosition, DroneMotionState& droneMotion, cons
     }
 
     double moveDistance = (oldSpeed + droneMotion.currentSpeed) * simTimeStep / 2.0;
-    moveDronToStop(dronePosition, droneMotion.currentDir, moveDistance);
+    moveDroneToStop(dronePosition, droneMotion.currentDir, moveDistance);
     if (droneMotion.currentSpeed == 0.0) {
       double turnAngle = fabs(calculateAngleDifference(droneMotion.currentDir, desiredDir));
       droneMotion.turnTargetDir = desiredDir;

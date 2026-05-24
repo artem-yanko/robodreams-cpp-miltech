@@ -2,7 +2,7 @@
 #include "utils/logger.hpp"
 #include "domain/types.hpp"
 #include <cmath>
-
+#include "utils/math_utils.hpp"
 static const double VERY_LARGE_TIME = 1e18;
 static const double TARGET_SWITCH_PREVENTION = 1.0;
 
@@ -53,22 +53,6 @@ static bool calculateTargetVelocity(int targetIndex, const TargetData& targets, 
   return true;
 }
 
-static double length(const Coord& c) {
-  return hypot(c.x, c.y);
-}
-
-static double distanceBetween(const Coord& from, const Coord& to) {
-  return length(to - from);
-}
-
-static Coord normalize(const Coord& c) {
-  double len = length(c);
-  if (len == 0.0) {
-      return {};
-  }
-  return c / len;
-}
-
 static double calculateTimeToStop(DronePhase phase, double currentSpeed, double acceleration, double turnRemainingTime) {
   if (phase == STOPPED) {
     return 0.0;
@@ -113,19 +97,6 @@ static double estimateTravelTime(double distance, double startSpeed, double atta
   }
 
   return timeToFullSpeed + (distance - distanceToFullSpeed) / attackSpeed;
-}
-
-static double calculateAngleDifference(double currentDir, double targetDir) {
-  double delta = targetDir - currentDir;
-
-  if (delta > M_PI) {
-    delta -= 2.0 * M_PI;
-  }
-  if (delta < -M_PI) {
-    delta += 2.0 * M_PI;
-  }
-
-  return delta;
 }
 
 static bool estimateTimeToCompleteMove(double& totalTime, double& currentSpeed, double& currentDir, const Coord& startPos, const Coord& goalPos, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
