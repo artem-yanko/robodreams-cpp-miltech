@@ -26,4 +26,7 @@ private:
     int ammoCount{};
     int currentIndex{};
     double simulationTime{};
+    Coord dronePosition{};
+    DroneMotionState droneMotion{};
+    double acceleration{};
 };

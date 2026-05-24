@@ -35,6 +35,10 @@ static bool moveDroneToPoint(Coord& position, const Coord& dest, double maxDista
   return false;
 }
 
+static bool isInsideRadius(const Coord& point, const Coord& center, double radius) {
+  return distanceBetween(point, center) <= radius;
+}
+
 static bool updateDroneMotion(Coord& dronePosition, DroneMotionState& droneMotion, const Coord& goal, double simTimeStep, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
 
   Coord deltaToGoal = goal - dronePosition;
@@ -179,6 +183,7 @@ MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* s
         ammoCount = 0;
         currentIndex = 0;
         simulationTime = 0.0;
+        acceleration = 0.0;
     }
 
 bool MissionProcessor::init() {
@@ -203,6 +208,15 @@ bool MissionProcessor::init() {
         ERROR_LOG("Failed to load targets");
         return false;
     }
+
+    dronePosition = config.startPos;
+    acceleration = calculateDroneAcceleration(config.attackSpeed, config.accelPath);
+    droneMotion.currentSpeed = 0.0;
+    droneMotion.currentDir = config.initialDir;
+    droneMotion.turnTargetDir = config.initialDir;
+    droneMotion.turnRemainingTime = 0.0;
+    droneMotion.phase = STOPPED;
+    droneMotion.currentTargetIndex = -1;
 
     return true;
 }
@@ -230,26 +244,58 @@ BallisticsResult MissionProcessor::step() {
     }
     BallisticsResult result = solver->solve(config, *selectedAmmo);
     BestTargetResult best{};
-    DroneMotionState droneMotion{};
-    double acceleration = 0.0;
     bool returningFromManuver = false;
 
-    if (analyzer.selectBestTarget(best, config, droneMotion, config.startPos, targets->getTargetsData(), simulationTime, result, acceleration, returningFromManuver)) {
+    if (analyzer.selectBestTarget(best, config, droneMotion, dronePosition, targets->getTargetsData(), simulationTime, result, acceleration, returningFromManuver)) {
         DEBUG("Selected target " << best.targetIndex
             << ": totalTime=" << best.totalTime
             << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
             << ", predictedTarget=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")"
             << ", needManeuver=" << best.needManeuver);
     }
-        
-        currentIndex++;
+
+    droneMotion.currentTargetIndex = best.targetIndex;
+
+    Coord goal{};
+    if (best.needManeuver) {
+        goal = best.maneuverPoint;
+    } else {
+        goal = best.dropPoint;
+    }
+    updateDroneMotion(dronePosition, droneMotion, goal, config.simTimeStep, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold);
+    DEBUG("Drone position: (" << dronePosition.x << "," << dronePosition.y << ")"
+        << ", dir=" << droneMotion.currentDir
+        << ", speed=" << droneMotion.currentSpeed
+        << ", phase=" << droneMotion.phase);
+
+    bool dropNow = isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
+                   && droneMotion.phase == MOVING;
+    if (dropNow) {
+        LOG("Умову скиду виконано"
+            << ", ціль #" << best.targetIndex
+            << ", дрон=(" << dronePosition.x << "," << dronePosition.y << ")"
+            << ", точка скиду=(" << best.dropPoint.x << "," << best.dropPoint.y << ")");
+        currentIndex = targets->getTargetCount();
         simulationTime += config.simTimeStep;
         return result;
+    }
+    
+
+    currentIndex++;
+    simulationTime += config.simTimeStep;
+    return result;
 }
 
 void MissionProcessor::reset() {
     currentIndex = 0;
     simulationTime = 0.0;
+    dronePosition = config.startPos;
+    droneMotion.currentSpeed = 0.0;
+    droneMotion.currentDir = config.initialDir;
+    droneMotion.turnTargetDir = config.initialDir;
+    droneMotion.turnRemainingTime = 0.0;
+    droneMotion.phase = STOPPED;
+    droneMotion.currentTargetIndex = -1;
 }
 
 void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
