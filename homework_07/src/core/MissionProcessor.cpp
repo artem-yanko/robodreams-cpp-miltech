@@ -80,6 +80,15 @@ static bool isInsideRadius(const Coord& point, const Coord& center, double radiu
   return distanceBetween(point, center) <= radius;
 }
 
+static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, const char* ammoName) {
+    for (int i = 0; i < ammoCount; ++i) {
+        if (strcmp(ammoName, ammoList[i].name) == 0) {
+            return &ammoList[i];
+        }
+    }
+    return nullptr;
+}
+
 static bool updateDroneMotion(Coord& dronePosition, DroneMotionState& droneMotion, const Coord& goal, double simTimeStep, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
 
   Coord deltaToGoal = goal - dronePosition;
@@ -222,6 +231,7 @@ MissionProcessor::~MissionProcessor() {
 MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader) : targets(targets), solver(solver), configLoader(configLoader) {
         ammoList = nullptr;
         ammoCount = 0;
+        ballistics = {};
         simulationTime = 0.0;
         acceleration = 0.0;
         missionComplete = false;
@@ -253,6 +263,13 @@ bool MissionProcessor::init() {
         return false;
     }
     LOG("Ammo parameters loaded: " << ammoCount);
+
+    const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
+    if (selectedAmmo == nullptr) {
+        ERROR_LOG("Failed to select ammo parameters");
+        return false;
+    }
+    ballistics = solver->solve(config, *selectedAmmo);
 
     if (!targets->loadTargets()) {
         ERROR_LOG("Failed to load targets");
@@ -288,29 +305,13 @@ bool MissionProcessor::hasNext() {
     return !missionComplete;
 }
 
-static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, const char* ammoName) {
-    for (int i = 0; i < ammoCount; ++i) {
-        if (strcmp(ammoName, ammoList[i].name) == 0) {
-            return &ammoList[i];
-        }
-    }
-    return nullptr;
-}
-
 BallisticsResult MissionProcessor::step() {
     TargetAnalyzer analyzer;
-
-    const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
-    if (selectedAmmo == nullptr) {
-        ERROR_LOG("Failed to select ammo parameters");
-        return {};
-    }
-    BallisticsResult result = solver->solve(config, *selectedAmmo);
     BestTargetResult best{};
 
     bool targetSelected = false;
     if (targetLocked) {
-        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, targets->getTargetsData(), lockedTargetIndex, dronePosition, simulationTime, result, acceleration, returningFromManuver);
+        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, targets->getTargetsData(), lockedTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Locked target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -319,7 +320,7 @@ BallisticsResult MissionProcessor::step() {
                 << ", needManeuver=" << best.needManeuver);
         }
     } else {
-        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, dronePosition, targets->getTargetsData(), simulationTime, result, acceleration, returningFromManuver);
+        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, dronePosition, targets->getTargetsData(), simulationTime, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Selected target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -332,7 +333,7 @@ BallisticsResult MissionProcessor::step() {
     if (!targetSelected) {
         ERROR_LOG("Failed to evaluate targets");
         missionComplete = true;
-        return result;
+        return ballistics;
     }
 
     droneMotion.currentTargetIndex = best.targetIndex;
@@ -371,12 +372,12 @@ BallisticsResult MissionProcessor::step() {
     }
 
     double distanceToDropPoint = distanceBetween(dronePosition, best.dropPoint);
-    if (!headingToManeuver && droneMotion.phase == MOVING && !targetLocked && distanceToDropPoint <= result.horizontalDistance) {
+    if (!headingToManeuver && droneMotion.phase == MOVING && !targetLocked && distanceToDropPoint <= ballistics.horizontalDistance) {
         targetLocked = true;
         lockedTargetIndex = best.targetIndex;
         DEBUG("Target locked: " << lockedTargetIndex
             << ", distanceToDropPoint=" << distanceToDropPoint
-            << ", horizontalDistance=" << result.horizontalDistance);
+            << ", horizontalDistance=" << ballistics.horizontalDistance);
     }
 
     updateDroneMotion(dronePosition, droneMotion, goal, config.simTimeStep, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold);
@@ -393,7 +394,7 @@ BallisticsResult MissionProcessor::step() {
     currentStep.targetIdx = best.targetIndex;
     currentStep.dropPoint = best.dropPoint;
     currentStep.predictedTarget = best.predictedTarget;
-    currentStep.aimPoint = dronePosition + currentDir * result.horizontalDistance;
+    currentStep.aimPoint = dronePosition + currentDir * ballistics.horizontalDistance;
     steps.push_back(currentStep);
 
     bool dropNow = !headingToManeuver && isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
@@ -414,11 +415,11 @@ BallisticsResult MissionProcessor::step() {
         maneuverTargetIndex = -1;
         missionComplete = true;
         simulationTime += config.simTimeStep;
-        return result;
+        return ballistics;
     }
     
     simulationTime += config.simTimeStep;
-    return result;
+    return ballistics;
 }
 
 void MissionProcessor::reset() {
@@ -447,4 +448,17 @@ void MissionProcessor::reset() {
 
 void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
     solver = newSolver;
+    if (solver == nullptr || ammoList == nullptr) {
+        ballistics = {};
+        return;
+    }
+
+    const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
+    if (selectedAmmo == nullptr) {
+        ERROR_LOG("Failed to select ammo parameters");
+        ballistics = {};
+        return;
+    }
+
+    ballistics = solver->solve(config, *selectedAmmo);
 }

@@ -25,6 +25,7 @@ private:
     DroneConfig config{};
     AmmoParams* ammoList{};
     int ammoCount{};
+    BallisticsResult ballistics{};
     double simulationTime{};
     Coord dronePosition{};
     DroneMotionState droneMotion{};
