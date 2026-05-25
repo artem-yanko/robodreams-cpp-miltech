@@ -181,7 +181,6 @@ MissionProcessor::~MissionProcessor() {
 MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader) : targets(targets), solver(solver), configLoader(configLoader) {
         ammoList = nullptr;
         ammoCount = 0;
-        currentIndex = 0;
         simulationTime = 0.0;
         acceleration = 0.0;
         missionComplete = false;
@@ -192,7 +191,6 @@ MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* s
     }
 
 bool MissionProcessor::init() {
-    currentIndex = 0;
     simulationTime = 0.0;
     if (!configLoader->loadConfig(config)) {
         ERROR_LOG("Failed to load drone configuration");
@@ -348,14 +346,11 @@ BallisticsResult MissionProcessor::step() {
         return result;
     }
     
-
-    // currentIndex++;
     simulationTime += config.simTimeStep;
     return result;
 }
 
 void MissionProcessor::reset() {
-    currentIndex = 0;
     simulationTime = 0.0;
     dronePosition = config.startPos;
     droneMotion.currentSpeed = 0.0;
