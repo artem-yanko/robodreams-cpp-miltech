@@ -4,6 +4,7 @@
 #include "interfaces/IBallisticSolver.hpp"
 #include "interfaces/IConfigLoader.hpp"
 #include "interfaces/ITargetProvider.hpp"
+#include <vector>
 
 class MissionProcessor {
 public:
@@ -33,4 +34,5 @@ private:
     int lockedTargetIndex{};
     bool returningFromManuver{};
     int maneuverTargetIndex{};
+    std::vector<SimStep> steps{};
 };

@@ -2,10 +2,51 @@
 #include "core/TargetAnalyzer.hpp"
 #include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
+#include "utils/json.hpp"
 #include <cstring>
 #include <cmath>
+#include <fstream>
 
 static const double SLOW_TURN_THRESHOLD_FACTOR = 1.0;
+
+static bool writeSimulationJson(const std::vector<SimStep>& steps) {
+  std::ofstream outputFile("simulation.json");
+  if (!outputFile) {
+    ERROR_LOG("Failed to open \"simulation.json\" for writing");
+    return false;
+  }
+
+  nlohmann::ordered_json outputJson;
+  outputJson["totalSteps"] = steps.empty() ? 0 : static_cast<int>(steps.size()) - 1;
+  outputJson["steps"] = nlohmann::ordered_json::array();
+
+  for (const SimStep& step : steps) {
+    nlohmann::ordered_json stepJson;
+    stepJson["position"] = {
+      {"x", step.pos.x},
+      {"y", step.pos.y}
+    };
+    stepJson["direction"] = step.direction;
+    stepJson["state"] = step.state;
+    stepJson["targetIndex"] = step.targetIdx;
+    stepJson["dropPoint"] = {
+      {"x", step.dropPoint.x},
+      {"y", step.dropPoint.y}
+    };
+    stepJson["aimPoint"] = {
+      {"x", step.aimPoint.x},
+      {"y", step.aimPoint.y}
+    };
+    stepJson["predictedTarget"] = {
+      {"x", step.predictedTarget.x},
+      {"y", step.predictedTarget.y}
+    };
+    outputJson["steps"].push_back(stepJson);
+  }
+
+  outputFile << outputJson.dump(2);
+  return true;
+}
 
 static double calculateDroneAcceleration(double attackSpeed, double accelerationPath) {
   if (accelerationPath <= 0.0) {
@@ -225,6 +266,14 @@ bool MissionProcessor::init() {
     lockedTargetIndex = -1;
     returningFromManuver = false;
     maneuverTargetIndex = -1;
+    steps.clear();
+
+    SimStep initialStep{};
+    initialStep.pos = dronePosition;
+    initialStep.direction = droneMotion.currentDir;
+    initialStep.state = droneMotion.phase;
+    initialStep.targetIdx = -1;
+    steps.push_back(initialStep);
 
     return true;
 }
@@ -330,6 +379,17 @@ BallisticsResult MissionProcessor::step() {
         << ", speed=" << droneMotion.currentSpeed
         << ", phase=" << droneMotion.phase);
 
+    Coord currentDir{cos(droneMotion.currentDir), sin(droneMotion.currentDir)};
+    SimStep currentStep{};
+    currentStep.pos = dronePosition;
+    currentStep.direction = droneMotion.currentDir;
+    currentStep.state = droneMotion.phase;
+    currentStep.targetIdx = best.targetIndex;
+    currentStep.dropPoint = best.dropPoint;
+    currentStep.predictedTarget = best.predictedTarget;
+    currentStep.aimPoint = dronePosition + currentDir * result.horizontalDistance;
+    steps.push_back(currentStep);
+
     bool dropNow = !headingToManeuver && isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
                    && droneMotion.phase == MOVING;
     if (dropNow) {
@@ -337,6 +397,11 @@ BallisticsResult MissionProcessor::step() {
             << ", target #" << best.targetIndex
             << ", drone=(" << dronePosition.x << "," << dronePosition.y << ")"
             << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")");
+        if (!writeSimulationJson(steps)) {
+            ERROR_LOG("Failed to write simulation.json");
+        } else {
+            LOG("Simulation written to simulation.json");
+        }
         targetLocked = false;
         lockedTargetIndex = -1;
         returningFromManuver = false;
@@ -364,6 +429,14 @@ void MissionProcessor::reset() {
     lockedTargetIndex = -1;
     returningFromManuver = false;
     maneuverTargetIndex = -1;
+    steps.clear();
+
+    SimStep initialStep{};
+    initialStep.pos = dronePosition;
+    initialStep.direction = droneMotion.currentDir;
+    initialStep.state = droneMotion.phase;
+    initialStep.targetIdx = -1;
+    steps.push_back(initialStep);
 }
 
 void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
