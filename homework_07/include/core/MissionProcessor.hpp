@@ -24,7 +24,6 @@ private:
     DroneConfig config{};
     AmmoParams* ammoList{};
     int ammoCount{};
-    int currentIndex{};
     double simulationTime{};
     Coord dronePosition{};
     DroneMotionState droneMotion{};
@@ -32,4 +31,6 @@ private:
     bool missionComplete{};
     bool targetLocked{};
     int lockedTargetIndex{};
+    bool returningFromManuver{};
+    int maneuverTargetIndex{};
 };

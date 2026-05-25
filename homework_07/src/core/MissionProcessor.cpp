@@ -187,6 +187,8 @@ MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* s
         missionComplete = false;
         targetLocked = false;
         lockedTargetIndex = -1;
+        returningFromManuver = false;
+        maneuverTargetIndex = -1;
     }
 
 bool MissionProcessor::init() {
@@ -223,6 +225,8 @@ bool MissionProcessor::init() {
     missionComplete = false;
     targetLocked = false;
     lockedTargetIndex = -1;
+    returningFromManuver = false;
+    maneuverTargetIndex = -1;
 
     return true;
 }
@@ -250,7 +254,6 @@ BallisticsResult MissionProcessor::step() {
     }
     BallisticsResult result = solver->solve(config, *selectedAmmo);
     BestTargetResult best{};
-    bool returningFromManuver = false;
 
     bool targetSelected = false;
     if (targetLocked) {
@@ -281,15 +284,41 @@ BallisticsResult MissionProcessor::step() {
 
     droneMotion.currentTargetIndex = best.targetIndex;
 
+    if (best.targetIndex != maneuverTargetIndex) {
+        returningFromManuver = false;
+    }
+    if (droneMotion.phase == DECELERATING) {
+        returningFromManuver = false;
+    }
+    if (droneMotion.phase == MOVING && !best.needManeuver) {
+        returningFromManuver = true;
+    }
+    if (returningFromManuver) {
+        best.needManeuver = false;
+    }
+
+    bool atManeuverPoint = best.needManeuver && isInsideRadius(dronePosition, best.maneuverPoint, config.hitRadius);
+    if (atManeuverPoint) {
+        returningFromManuver = true;
+        best.needManeuver = false;
+        targetLocked = true;
+        lockedTargetIndex = best.targetIndex;
+        DEBUG("Reached maneuver point for target " << best.targetIndex);
+    }
+
     Coord goal{};
-    if (best.needManeuver) {
+    bool headingToManeuver = best.needManeuver && !atManeuverPoint;
+    if (headingToManeuver) {
         goal = best.maneuverPoint;
+        maneuverTargetIndex = best.targetIndex;
+        targetLocked = true;
+        lockedTargetIndex = best.targetIndex;
     } else {
         goal = best.dropPoint;
     }
 
     double distanceToDropPoint = distanceBetween(dronePosition, best.dropPoint);
-    if (!targetLocked && distanceToDropPoint <= result.horizontalDistance) {
+    if (!headingToManeuver && droneMotion.phase == MOVING && !targetLocked && distanceToDropPoint <= result.horizontalDistance) {
         targetLocked = true;
         lockedTargetIndex = best.targetIndex;
         DEBUG("Target locked: " << lockedTargetIndex
@@ -303,7 +332,7 @@ BallisticsResult MissionProcessor::step() {
         << ", speed=" << droneMotion.currentSpeed
         << ", phase=" << droneMotion.phase);
 
-    bool dropNow = isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
+    bool dropNow = !headingToManeuver && isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
                    && droneMotion.phase == MOVING;
     if (dropNow) {
         LOG("Drop condition met"
@@ -312,6 +341,8 @@ BallisticsResult MissionProcessor::step() {
             << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")");
         targetLocked = false;
         lockedTargetIndex = -1;
+        returningFromManuver = false;
+        maneuverTargetIndex = -1;
         missionComplete = true;
         simulationTime += config.simTimeStep;
         return result;
@@ -336,6 +367,8 @@ void MissionProcessor::reset() {
     missionComplete = false;
     targetLocked = false;
     lockedTargetIndex = -1;
+    returningFromManuver = false;
+    maneuverTargetIndex = -1;
 }
 
 void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
