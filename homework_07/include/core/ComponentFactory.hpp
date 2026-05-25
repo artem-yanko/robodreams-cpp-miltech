@@ -1,14 +1,18 @@
 #pragma once
 
 #include "core/MissionProcessor.hpp"
-#include "providers/AnalyticalSolver.hpp"
-#include "providers/JsonConfigLoader.hpp"
-#include "providers/JsonTargetProvider.hpp"
+#include "interfaces/IBallisticSolver.hpp"
+#include "interfaces/IConfigLoader.hpp"
+#include "interfaces/ITargetProvider.hpp"
+
+enum class SolverType { ANALYTICAL };
+enum class ProviderType { JSON };
+enum class LoaderType { FILE };
 
 class ComponentFactory {
 public:
-    static JsonConfigLoader* createConfigLoader();
-    static JsonTargetProvider* createTargetProvider();
-    static AnalyticalSolver* createSolver();
+    static IBallisticSolver* createSolver(SolverType type);
+    static ITargetProvider* createProvider(ProviderType type, const char* param);
+    static IConfigLoader* createLoader(LoaderType type);
     static MissionProcessor* createMissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader);
 };

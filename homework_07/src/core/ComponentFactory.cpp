@@ -1,15 +1,35 @@
 #include "core/ComponentFactory.hpp"
 
-JsonConfigLoader* ComponentFactory::createConfigLoader() {
-    return new JsonConfigLoader();
+#include "providers/AnalyticalSolver.hpp"
+#include "providers/JsonConfigLoader.hpp"
+#include "providers/JsonTargetProvider.hpp"
+
+IBallisticSolver* ComponentFactory::createSolver(SolverType type) {
+    switch (type) {
+    case SolverType::ANALYTICAL:
+        return new AnalyticalSolver();
+    default:
+        return nullptr;
+    }
 }
 
-JsonTargetProvider* ComponentFactory::createTargetProvider() {
-    return new JsonTargetProvider();
+ITargetProvider* ComponentFactory::createProvider(ProviderType type, const char* param) {
+    (void)param;
+    switch (type) {
+    case ProviderType::JSON:
+        return new JsonTargetProvider();
+    default:
+        return nullptr;
+    }
 }
 
-AnalyticalSolver* ComponentFactory::createSolver() {
-    return new AnalyticalSolver();
+IConfigLoader* ComponentFactory::createLoader(LoaderType type) {
+    switch (type) {
+    case LoaderType::FILE:
+        return new JsonConfigLoader();
+    default:
+        return nullptr;
+    }
 }
 
 MissionProcessor* ComponentFactory::createMissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader) {

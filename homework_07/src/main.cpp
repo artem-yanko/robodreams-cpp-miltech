@@ -3,9 +3,17 @@
 #include "core/ComponentFactory.hpp"
 
 int main() {
-    JsonConfigLoader* configLoader = ComponentFactory::createConfigLoader();
-    JsonTargetProvider* targetProvider = ComponentFactory::createTargetProvider();
-    AnalyticalSolver* solver = ComponentFactory::createSolver();
+    IConfigLoader* configLoader = ComponentFactory::createLoader(LoaderType::FILE);
+    ITargetProvider* targetProvider = ComponentFactory::createProvider(ProviderType::JSON, "targets.json");
+    IBallisticSolver* solver = ComponentFactory::createSolver(SolverType::ANALYTICAL);
+
+    if (configLoader == nullptr || targetProvider == nullptr || solver == nullptr) {
+        std::cerr << "Failed to create mission components" << std::endl;
+        delete solver;
+        delete targetProvider;
+        delete configLoader;
+        return 1;
+    }
 
     MissionProcessor* mission = ComponentFactory::createMissionProcessor(targetProvider, solver, configLoader);
     if (!mission->init()) {
