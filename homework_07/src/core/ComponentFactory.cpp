@@ -17,16 +17,17 @@ ITargetProvider* ComponentFactory::createProvider(ProviderType type, const char*
     (void)param;
     switch (type) {
     case ProviderType::JSON:
-        return new JsonTargetProvider();
+        return new JsonTargetProvider(param != nullptr ? param : "targets.json");
     default:
         return nullptr;
     }
 }
 
-IConfigLoader* ComponentFactory::createLoader(LoaderType type) {
+IConfigLoader* ComponentFactory::createLoader(LoaderType type, const char* configPath, const char* ammoPath) {
     switch (type) {
     case LoaderType::FILE:
-        return new JsonConfigLoader();
+        return new JsonConfigLoader(configPath != nullptr ? configPath : "config.json",
+                                    ammoPath != nullptr ? ammoPath : "ammo.json");
     default:
         return nullptr;
     }

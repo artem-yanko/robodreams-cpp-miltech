@@ -6,6 +6,10 @@
 #include <string>
 using json = nlohmann::json;
 
+JsonTargetProvider::JsonTargetProvider(const std::string& targetPath)
+    : targetPath_(targetPath) {
+}
+
 void JsonTargetProvider::clearTargets() {
   if (targets.positions) {
     for (int i = 0; i < targets.targetCount; ++i) {
@@ -23,9 +27,9 @@ JsonTargetProvider::~JsonTargetProvider() {
 }
 
 bool JsonTargetProvider::loadTargets() {
-  std::ifstream targetsFile("targets.json");
+  std::ifstream targetsFile(targetPath_);
   if (!targetsFile) {
-    ERROR_LOG("Failed to open file \"targets.json\"");
+    ERROR_LOG("Failed to open file \"" << targetPath_ << "\"");
     return false;
   }
 
@@ -37,7 +41,7 @@ bool JsonTargetProvider::loadTargets() {
   targets.targetCount = targetsJson["targetCount"];
   targets.timeSteps = targetsJson["timeSteps"];
   if (targets.targetCount <= 0 || targets.timeSteps <= 0) {
-    ERROR_LOG("File \"targets.json\" contains invalid target arrays");
+    ERROR_LOG("File \"" << targetPath_ << "\" contains invalid target arrays");
     return false;
   }
 

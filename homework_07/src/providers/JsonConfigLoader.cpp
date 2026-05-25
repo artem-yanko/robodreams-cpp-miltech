@@ -6,10 +6,14 @@
 #include "utils/json.hpp"
 using json = nlohmann::json;
 
+JsonConfigLoader::JsonConfigLoader(const std::string& configPath, const std::string& ammoPath)
+    : configPath_(configPath), ammoPath_(ammoPath) {
+}
+
 bool JsonConfigLoader::loadConfig(DroneConfig& config) {
-    std::ifstream configFile("config.json");
+    std::ifstream configFile(configPath_);
     if (!configFile) {
-        ERROR_LOG("Failed to open config file");
+        ERROR_LOG("Failed to open config file \"" << configPath_ << "\"");
         return false;
     }
 
@@ -36,9 +40,9 @@ bool JsonConfigLoader::loadConfig(DroneConfig& config) {
 }
 
 bool JsonConfigLoader::loadAmmo(AmmoParams*& ammoList, int& ammoCount) {
-  std::ifstream ammoFile("ammo.json");
+  std::ifstream ammoFile(ammoPath_);
   if (!ammoFile) {
-    ERROR_LOG("Failed to open file \"ammo.json\"");
+    ERROR_LOG("Failed to open file \"" << ammoPath_ << "\"");
     return false;
   }
 
@@ -47,7 +51,7 @@ bool JsonConfigLoader::loadAmmo(AmmoParams*& ammoList, int& ammoCount) {
 
   ammoCount = static_cast<int>(ammoJson.size());
   if (ammoCount <= 0) {
-    ERROR_LOG("File \"ammo.json\" does not contain ammo entries");
+    ERROR_LOG("File \"" << ammoPath_ << "\" does not contain ammo entries");
     return false;
   }
 

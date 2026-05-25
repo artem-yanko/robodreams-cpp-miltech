@@ -13,6 +13,6 @@ class ComponentFactory {
 public:
     static IBallisticSolver* createSolver(SolverType type);
     static ITargetProvider* createProvider(ProviderType type, const char* param);
-    static IConfigLoader* createLoader(LoaderType type);
+    static IConfigLoader* createLoader(LoaderType type, const char* configPath, const char* ammoPath);
     static MissionProcessor* createMissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader);
 };
