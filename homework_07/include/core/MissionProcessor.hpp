@@ -29,4 +29,7 @@ private:
     Coord dronePosition{};
     DroneMotionState droneMotion{};
     double acceleration{};
+    bool missionComplete{};
+    bool targetLocked{};
+    int lockedTargetIndex{};
 };

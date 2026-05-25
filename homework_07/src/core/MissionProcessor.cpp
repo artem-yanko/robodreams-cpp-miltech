@@ -184,6 +184,9 @@ MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* s
         currentIndex = 0;
         simulationTime = 0.0;
         acceleration = 0.0;
+        missionComplete = false;
+        targetLocked = false;
+        lockedTargetIndex = -1;
     }
 
 bool MissionProcessor::init() {
@@ -217,12 +220,15 @@ bool MissionProcessor::init() {
     droneMotion.turnRemainingTime = 0.0;
     droneMotion.phase = STOPPED;
     droneMotion.currentTargetIndex = -1;
+    missionComplete = false;
+    targetLocked = false;
+    lockedTargetIndex = -1;
 
     return true;
 }
 
 bool MissionProcessor::hasNext() {
-    return currentIndex < targets->getTargetCount();
+    return !missionComplete;
 }
 
 static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, const char* ammoName) {
@@ -236,7 +242,7 @@ static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, c
 
 BallisticsResult MissionProcessor::step() {
     TargetAnalyzer analyzer;
-    
+
     const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
     if (selectedAmmo == nullptr) {
         ERROR_LOG("Failed to select ammo parameters");
@@ -246,12 +252,31 @@ BallisticsResult MissionProcessor::step() {
     BestTargetResult best{};
     bool returningFromManuver = false;
 
-    if (analyzer.selectBestTarget(best, config, droneMotion, dronePosition, targets->getTargetsData(), simulationTime, result, acceleration, returningFromManuver)) {
-        DEBUG("Selected target " << best.targetIndex
-            << ": totalTime=" << best.totalTime
-            << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
-            << ", predictedTarget=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")"
-            << ", needManeuver=" << best.needManeuver);
+    bool targetSelected = false;
+    if (targetLocked) {
+        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, targets->getTargetsData(), lockedTargetIndex, dronePosition, simulationTime, result, acceleration, returningFromManuver);
+        if (targetSelected) {
+            DEBUG("Locked target " << best.targetIndex
+                << ": totalTime=" << best.totalTime
+                << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
+                << ", predictedTarget=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")"
+                << ", needManeuver=" << best.needManeuver);
+        }
+    } else {
+        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, dronePosition, targets->getTargetsData(), simulationTime, result, acceleration, returningFromManuver);
+        if (targetSelected) {
+            DEBUG("Selected target " << best.targetIndex
+                << ": totalTime=" << best.totalTime
+                << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
+                << ", predictedTarget=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")"
+                << ", needManeuver=" << best.needManeuver);
+        }
+    }
+
+    if (!targetSelected) {
+        ERROR_LOG("Failed to evaluate targets");
+        missionComplete = true;
+        return result;
     }
 
     droneMotion.currentTargetIndex = best.targetIndex;
@@ -262,6 +287,16 @@ BallisticsResult MissionProcessor::step() {
     } else {
         goal = best.dropPoint;
     }
+
+    double distanceToDropPoint = distanceBetween(dronePosition, best.dropPoint);
+    if (!targetLocked && distanceToDropPoint <= result.horizontalDistance) {
+        targetLocked = true;
+        lockedTargetIndex = best.targetIndex;
+        DEBUG("Target locked: " << lockedTargetIndex
+            << ", distanceToDropPoint=" << distanceToDropPoint
+            << ", horizontalDistance=" << result.horizontalDistance);
+    }
+
     updateDroneMotion(dronePosition, droneMotion, goal, config.simTimeStep, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold);
     DEBUG("Drone position: (" << dronePosition.x << "," << dronePosition.y << ")"
         << ", dir=" << droneMotion.currentDir
@@ -275,13 +310,15 @@ BallisticsResult MissionProcessor::step() {
             << ", target #" << best.targetIndex
             << ", drone=(" << dronePosition.x << "," << dronePosition.y << ")"
             << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")");
-        currentIndex = targets->getTargetCount();
+        targetLocked = false;
+        lockedTargetIndex = -1;
+        missionComplete = true;
         simulationTime += config.simTimeStep;
         return result;
     }
     
 
-    currentIndex++;
+    // currentIndex++;
     simulationTime += config.simTimeStep;
     return result;
 }
@@ -296,6 +333,9 @@ void MissionProcessor::reset() {
     droneMotion.turnRemainingTime = 0.0;
     droneMotion.phase = STOPPED;
     droneMotion.currentTargetIndex = -1;
+    missionComplete = false;
+    targetLocked = false;
+    lockedTargetIndex = -1;
 }
 
 void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
