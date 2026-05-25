@@ -242,6 +242,12 @@ bool MissionProcessor::init() {
         << ", ammoName=" << config.ammoName
         << ", startPos=(" << config.startPos.x << "," << config.startPos.y << ")");
 
+    if (ammoList != nullptr) {
+        delete[] ammoList;
+        ammoList = nullptr;
+        ammoCount = 0;
+    }
+
     if (!configLoader->loadAmmo(ammoList, ammoCount)) {
         ERROR_LOG("Failed to load ammo parameters");
         return false;
