@@ -1,6 +1,7 @@
 #pragma once
 #include "domain/enums.hpp"
 #include <string>
+#include <vector>
 
 struct AmmoParams {
     std::string name{};
@@ -72,7 +73,7 @@ struct DroneMotionState {
 struct TargetData {
     int targetCount{};
     int timeSteps{};
-    Coord** positions{};
+    std::vector<std::vector<Coord>> positions{};
 };
 
 struct Target {

@@ -1,4 +1,4 @@
-#include <iostream>
+#include "utils/logger.hpp"
 
 #include "core/ComponentFactory.hpp"
 
@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
     IBallisticSolver* solver = ComponentFactory::createSolver(SolverType::ANALYTICAL);
 
     if (configLoader == nullptr || targetProvider == nullptr || solver == nullptr) {
-        std::cerr << "Failed to create mission components" << std::endl;
+        ERROR_LOG("Failed to create mission components");
         delete solver;
         delete targetProvider;
         delete configLoader;
@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
 
     MissionProcessor* mission = ComponentFactory::createMissionProcessor(targetProvider, solver, configLoader);
     if (!mission->init()) {
-        std::cerr << "Failed to initialize mission" << std::endl;
+        ERROR_LOG("Failed to initialize mission");
         delete mission;
         delete solver;
         delete targetProvider;
@@ -30,9 +30,7 @@ int main(int argc, char* argv[]) {
     }
 
     while (mission->hasNext()) {
-        BallisticsResult result = mission->step();
-        std::cout << "flight_time " << result.flightTime << '\n';
-        std::cout << "horizontal_distance " << result.horizontalDistance << '\n';
+        mission->step();
     }
 
     delete mission;
