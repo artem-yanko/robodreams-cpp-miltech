@@ -4,6 +4,7 @@
 #include "interfaces/IBallisticSolver.hpp"
 #include "interfaces/IConfigLoader.hpp"
 #include "interfaces/ITargetProvider.hpp"
+#include <unordered_map>
 #include <vector>
 
 class MissionProcessor {
@@ -24,6 +25,7 @@ private:
 
     DroneConfig config{};
     std::vector<AmmoParams> ammoList{};
+    std::unordered_map<std::string, std::size_t> ammoIndex{};
     BallisticsResult ballistics{};
     double simulationTime{};
     Coord dronePosition{};

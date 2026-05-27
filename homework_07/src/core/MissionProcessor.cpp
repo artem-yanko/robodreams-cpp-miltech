@@ -79,15 +79,6 @@ static bool isInsideRadius(const Coord& point, const Coord& center, double radiu
   return distanceBetween(point, center) <= radius;
 }
 
-static const AmmoParams* ammoSelect(const std::vector<AmmoParams>& ammoList, const std::string& ammoName) {
-    for (const auto& ammo : ammoList) {
-        if (ammoName == ammo.name) {
-            return &ammo;
-        }
-    }
-    return nullptr;
-}
-
 static bool updateDroneMotion(Coord& dronePosition, DroneMotionState& droneMotion, const Coord& goal, double simTimeStep, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
 
   Coord deltaToGoal = goal - dronePosition;
@@ -245,6 +236,7 @@ bool MissionProcessor::init() {
         << ", startPos=(" << config.startPos.x << "," << config.startPos.y << ")");
 
     ammoList.clear();
+    ammoIndex.clear();
 
     if (!configLoader->loadAmmo(ammoList)) {
         ERROR_LOG("Failed to load ammo parameters");
@@ -252,12 +244,16 @@ bool MissionProcessor::init() {
     }
     LOG("Ammo parameters loaded: " << ammoList.size());
 
-    const AmmoParams* selectedAmmo = ammoSelect(ammoList, config.ammoName);
-    if (selectedAmmo == nullptr) {
+    for (std::size_t i = 0; i < ammoList.size(); ++i) {
+        ammoIndex[ammoList[i].name] = i;
+    }
+
+    auto selectedAmmo = ammoIndex.find(config.ammoName);
+    if (selectedAmmo == ammoIndex.end()) {
         ERROR_LOG("Failed to select ammo parameters");
         return false;
     }
-    ballistics = solver->solve(config, *selectedAmmo);
+    ballistics = solver->solve(config, ammoList[selectedAmmo->second]);
 
     if (!targets->loadTargets()) {
         ERROR_LOG("Failed to load targets");
@@ -441,12 +437,12 @@ void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
         return;
     }
 
-    const AmmoParams* selectedAmmo = ammoSelect(ammoList, config.ammoName);
-    if (selectedAmmo == nullptr) {
+    auto selectedAmmo = ammoIndex.find(config.ammoName);
+    if (selectedAmmo == ammoIndex.end()) {
         ERROR_LOG("Failed to select ammo parameters");
         ballistics = {};
         return;
     }
 
-    ballistics = solver->solve(config, *selectedAmmo);
+    ballistics = solver->solve(config, ammoList[selectedAmmo->second]);
 }
