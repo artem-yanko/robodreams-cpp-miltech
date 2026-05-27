@@ -3,7 +3,6 @@
 #include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
 #include "utils/json.hpp"
-#include <cstring>
 #include <cmath>
 #include <fstream>
 
@@ -80,9 +79,9 @@ static bool isInsideRadius(const Coord& point, const Coord& center, double radiu
   return distanceBetween(point, center) <= radius;
 }
 
-static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, const char* ammoName) {
+static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, const std::string& ammoName) {
     for (int i = 0; i < ammoCount; ++i) {
-        if (strcmp(ammoName, ammoList[i].name) == 0) {
+        if (ammoName == ammoList[i].name) {
             return &ammoList[i];
         }
     }
