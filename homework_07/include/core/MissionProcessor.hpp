@@ -23,8 +23,7 @@ private:
     IConfigLoader* configLoader;
 
     DroneConfig config{};
-    AmmoParams* ammoList{};
-    int ammoCount{};
+    std::vector<AmmoParams> ammoList{};
     BallisticsResult ballistics{};
     double simulationTime{};
     Coord dronePosition{};
