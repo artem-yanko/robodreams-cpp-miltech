@@ -213,7 +213,8 @@ static bool updateDroneMotion(Coord& dronePosition, DroneMotionState& droneMotio
 
 MissionProcessor::~MissionProcessor() = default;
 
-MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader) : targets(targets), solver(solver), configLoader(configLoader) {
+MissionProcessor::MissionProcessor(std::unique_ptr<ITargetProvider> targets, std::unique_ptr<IBallisticSolver> solver, std::unique_ptr<IConfigLoader> configLoader)
+    : targets(std::move(targets)), solver(std::move(solver)), configLoader(std::move(configLoader)) {
         ballistics = {};
         simulationTime = 0.0;
         acceleration = 0.0;
@@ -430,8 +431,8 @@ void MissionProcessor::reset() {
     steps.push_back(initialStep);
 }
 
-void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
-    solver = newSolver;
+void MissionProcessor::changeSolver(std::unique_ptr<IBallisticSolver> newSolver) {
+    solver = std::move(newSolver);
     if (solver == nullptr || ammoList.empty()) {
         ballistics = {};
         return;
