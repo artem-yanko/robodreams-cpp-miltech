@@ -2,6 +2,10 @@ add_library(analytical_solver src/providers/AnalyticalSolver.cpp)
 target_include_directories(analytical_solver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(analytical_solver PRIVATE -Wall -Wextra -pedantic)
 
+add_library(table_solver src/providers/TableSolver.cpp)
+target_include_directories(table_solver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(table_solver PRIVATE -Wall -Wextra -pedantic)
+
 add_library(json_config_loader src/providers/JsonConfigLoader.cpp)
 target_include_directories(json_config_loader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(json_config_loader PRIVATE -Wall -Wextra -pedantic)
@@ -24,7 +28,7 @@ target_compile_options(mission_processor PRIVATE -Wall -Wextra -pedantic)
 
 add_library(component_factory src/core/ComponentFactory.cpp)
 target_include_directories(component_factory PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(component_factory PUBLIC analytical_solver json_config_loader json_target_provider mission_processor target_analyzer math_utils)
+target_link_libraries(component_factory PUBLIC analytical_solver table_solver json_config_loader json_target_provider mission_processor target_analyzer math_utils)
 target_compile_options(component_factory PRIVATE -Wall -Wextra -pedantic)
 
 add_executable(mission_runner_app src/main.cpp)
