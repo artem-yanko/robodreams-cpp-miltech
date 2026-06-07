@@ -11,7 +11,7 @@ int main(int argc, char* argv[]) {
 
     auto configLoader = ComponentFactory::createLoader(LoaderType::FILE, configPath, ammoPath);
     auto targetProvider = ComponentFactory::createProvider(ProviderType::JSON, targetPath);
-    auto solver = ComponentFactory::createSolver(SolverType::ANALYTICAL);
+    auto solver = ComponentFactory::createSolver(SolverType::TABLE, ballisticTablePath);
 
     if (configLoader == nullptr || targetProvider == nullptr || solver == nullptr) {
         ERROR_LOG("Failed to create mission components");

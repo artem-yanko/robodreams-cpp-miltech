@@ -3,11 +3,13 @@
 #include "providers/AnalyticalSolver.hpp"
 #include "providers/JsonConfigLoader.hpp"
 #include "providers/JsonTargetProvider.hpp"
-
-std::unique_ptr<IBallisticSolver> ComponentFactory::createSolver(SolverType type) {
+#include "providers/TableSolver.hpp"
+std::unique_ptr<IBallisticSolver> ComponentFactory::createSolver(SolverType type, const char* param) {
     switch (type) {
     case SolverType::ANALYTICAL:
         return std::make_unique<AnalyticalSolver>();
+    case SolverType::TABLE:
+        return std::make_unique<TableSolver>(param != nullptr ? param : "ballistic_table.txt");
     default:
         return nullptr;
     }
