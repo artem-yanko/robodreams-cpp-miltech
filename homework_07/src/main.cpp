@@ -7,6 +7,7 @@ int main(int argc, char* argv[]) {
     const char* configPath = argc > 1 ? argv[1] : "config.json";
     const char* ammoPath = argc > 2 ? argv[2] : "ammo.json";
     const char* targetPath = argc > 3 ? argv[3] : "targets.json";
+    const char* ballisticTablePath = argc > 4 ? argv[4] : "ballistic_table.txt";
 
     auto configLoader = ComponentFactory::createLoader(LoaderType::FILE, configPath, ammoPath);
     auto targetProvider = ComponentFactory::createProvider(ProviderType::JSON, targetPath);
