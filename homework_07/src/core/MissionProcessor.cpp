@@ -6,7 +6,7 @@
 #include <cmath>
 #include <fstream>
 
-static const double SLOW_TURN_THRESHOLD_FACTOR = 1.0;
+static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
 
 static bool writeSimulationJson(const std::vector<SimStep>& steps) {
   std::ofstream outputFile("simulation.json");

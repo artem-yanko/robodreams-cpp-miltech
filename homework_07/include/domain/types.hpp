@@ -66,6 +66,7 @@ struct DroneMotionState {
     double currentDir{};
     double turnRemainingTime{};
     double turnTargetDir{};
+    double desiredDir{};
     DronePhase phase{STOPPED};
     int currentTargetIndex{-1};
 };

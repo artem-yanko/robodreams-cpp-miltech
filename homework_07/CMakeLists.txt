@@ -26,9 +26,29 @@ add_library(mission_processor src/core/MissionProcessor.cpp)
 target_include_directories(mission_processor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(mission_processor PRIVATE -Wall -Wextra -pedantic)
 
+add_library(state_stopped src/states/StateStopped.cpp)
+target_include_directories(state_stopped PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(state_stopped PRIVATE -Wall -Wextra -pedantic)
+
+add_library(state_turning src/states/StateTurning.cpp)
+target_include_directories(state_turning PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(state_turning PRIVATE -Wall -Wextra -pedantic)
+
+add_library(state_moving src/states/StateMoving.cpp)
+target_include_directories(state_moving PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(state_moving PRIVATE -Wall -Wextra -pedantic)
+
+add_library(state_accelerating src/states/StateAccelerating.cpp)
+target_include_directories(state_accelerating PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(state_accelerating PRIVATE -Wall -Wextra -pedantic)
+
+add_library(state_decelerating src/states/StateDecelerating.cpp)
+target_include_directories(state_decelerating PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(state_decelerating PRIVATE -Wall -Wextra -pedantic)
+
 add_library(component_factory src/core/ComponentFactory.cpp)
 target_include_directories(component_factory PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(component_factory PUBLIC analytical_solver table_solver json_config_loader json_target_provider mission_processor target_analyzer math_utils)
+target_link_libraries(component_factory PUBLIC analytical_solver table_solver json_config_loader json_target_provider mission_processor target_analyzer math_utils state_stopped state_turning state_moving state_accelerating state_decelerating)
 target_compile_options(component_factory PRIVATE -Wall -Wextra -pedantic)
 
 add_executable(mission_runner_app src/main.cpp)
