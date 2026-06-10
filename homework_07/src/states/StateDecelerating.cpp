@@ -10,7 +10,6 @@ static void moveDroneToStop(Coord& position, double direction, double distance) 
 }
 
 std::unique_ptr<IDroneState> StateDecelerating::execute(DroneContext& ctx) {
-  ctx.droneMotion.phase = DECELERATING;
   double oldSpeed = ctx.droneMotion.currentSpeed;
   ctx.droneMotion.currentSpeed -= ctx.acceleration * ctx.config.simTimeStep;
   if (ctx.droneMotion.currentSpeed < 0.0) {
@@ -37,4 +36,3 @@ std::unique_ptr<IDroneState> StateDecelerating::execute(DroneContext& ctx) {
 const char* StateDecelerating::name() const {
     return "Decelerating";
 }
-

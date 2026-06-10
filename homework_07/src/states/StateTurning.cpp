@@ -4,7 +4,6 @@
 #include <cmath>
 
 std::unique_ptr<IDroneState> StateTurning::execute(DroneContext& ctx) {
-    ctx.droneMotion.phase = TURNING;
     double angleLeft = calculateAngleDifference(ctx.droneMotion.currentDir, ctx.droneMotion.turnTargetDir);
     double turnStep = ctx.config.angularSpeed * ctx.config.simTimeStep;
 
@@ -32,4 +31,3 @@ std::unique_ptr<IDroneState> StateTurning::execute(DroneContext& ctx) {
 const char* StateTurning::name() const {
     return "Turning";
 }
-

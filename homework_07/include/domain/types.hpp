@@ -1,5 +1,4 @@
 #pragma once
-#include "domain/enums.hpp"
 #include <string>
 #include <vector>
 
@@ -39,7 +38,7 @@ struct DroneConfig {
 struct SimStep {
     Coord pos{};
     double direction{};
-    DronePhase state{STOPPED};
+    std::string state{};
     int targetIdx{-1};
     Coord dropPoint{};
     Coord aimPoint{};
@@ -67,7 +66,6 @@ struct DroneMotionState {
     double turnRemainingTime{};
     double turnTargetDir{};
     double desiredDir{};
-    DronePhase phase{STOPPED};
     int currentTargetIndex{-1};
 };
 

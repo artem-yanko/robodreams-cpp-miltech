@@ -5,7 +5,6 @@
 #include <cmath>
 
 std::unique_ptr<IDroneState> StateStopped::execute(DroneContext& ctx) {
-    ctx.droneMotion.phase = STOPPED;
     ctx.droneMotion.currentSpeed = 0.0;
 
     double deltaAngle = std::fabs(calculateAngleDifference(ctx.droneMotion.currentDir, ctx.droneMotion.desiredDir));
@@ -22,4 +21,3 @@ std::unique_ptr<IDroneState> StateStopped::execute(DroneContext& ctx) {
 const char* StateStopped::name() const {
     return "Stopped";
 }
-

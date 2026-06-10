@@ -113,7 +113,6 @@ bool MissionProcessor::init() {
     droneMotion.currentDir = config.initialDir;
     droneMotion.turnTargetDir = config.initialDir;
     droneMotion.turnRemainingTime = 0.0;
-    droneMotion.phase = STOPPED;
     droneMotion.currentTargetIndex = -1;
     missionComplete = false;
     targetLocked = false;
@@ -122,13 +121,14 @@ bool MissionProcessor::init() {
     maneuverTargetIndex = -1;
     steps.clear();
 
+    droneState = std::make_unique<StateStopped>();
+
     SimStep initialStep{};
     initialStep.pos = dronePosition;
     initialStep.direction = droneMotion.currentDir;
-    initialStep.state = droneMotion.phase;
+    initialStep.state = droneState->name();
     initialStep.targetIdx = -1;
     steps.push_back(initialStep);
-    droneState = std::make_unique<StateStopped>();
 
     return true;
 }
@@ -140,10 +140,14 @@ bool MissionProcessor::hasNext() {
 BallisticsResult MissionProcessor::step() {
     TargetAnalyzer analyzer;
     BestTargetResult best{};
+    const bool isTurning = droneState->isTurning();
+    const bool isMoving = droneState->isMoving();
+    const bool isDecelerating = droneState->isDecelerating();
+    const bool isAccelerating = droneState->isAccelerating();
 
     bool targetSelected = false;
     if (targetLocked) {
-        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, targets->getTargetsData(), lockedTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver);
+        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets->getTargetsData(), lockedTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Locked target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -152,7 +156,7 @@ BallisticsResult MissionProcessor::step() {
                 << ", needManeuver=" << best.needManeuver);
         }
     } else {
-        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, dronePosition, targets->getTargetsData(), simulationTime, ballistics, acceleration, returningFromManuver);
+        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, targets->getTargetsData(), simulationTime, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Selected target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -173,10 +177,10 @@ BallisticsResult MissionProcessor::step() {
     if (best.targetIndex != maneuverTargetIndex) {
         returningFromManuver = false;
     }
-    if (droneMotion.phase == DECELERATING) {
+    if (droneState->isDecelerating()) {
         returningFromManuver = false;
     }
-    if (droneMotion.phase == MOVING && !best.needManeuver) {
+    if (droneState->isMoving() && !best.needManeuver) {
         returningFromManuver = true;
     }
     if (returningFromManuver) {
@@ -204,7 +208,7 @@ BallisticsResult MissionProcessor::step() {
     }
 
     double distanceToDropPoint = distanceBetween(dronePosition, best.dropPoint);
-    if (!headingToManeuver && droneMotion.phase == MOVING && !targetLocked && distanceToDropPoint <= ballistics.horizontalDistance) {
+    if (!headingToManeuver && droneState->isMoving() && !targetLocked && distanceToDropPoint <= ballistics.horizontalDistance) {
         targetLocked = true;
         lockedTargetIndex = best.targetIndex;
         DEBUG("Target locked: " << lockedTargetIndex
@@ -234,13 +238,13 @@ BallisticsResult MissionProcessor::step() {
     DEBUG("Drone position: (" << dronePosition.x << "," << dronePosition.y << ")"
         << ", dir=" << droneMotion.currentDir
         << ", speed=" << droneMotion.currentSpeed
-        << ", phase=" << droneMotion.phase);
+        << ", state=" << droneState->name());
 
     Coord currentDir{cos(droneMotion.currentDir), sin(droneMotion.currentDir)};
     SimStep currentStep{};
     currentStep.pos = dronePosition;
     currentStep.direction = droneMotion.currentDir;
-    currentStep.state = droneMotion.phase;
+    currentStep.state = droneState->name();
     currentStep.targetIdx = best.targetIndex;
     currentStep.dropPoint = best.dropPoint;
     currentStep.predictedTarget = best.predictedTarget;
@@ -248,7 +252,7 @@ BallisticsResult MissionProcessor::step() {
     steps.push_back(currentStep);
 
     bool dropNow = !headingToManeuver && isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
-                   && droneMotion.phase == MOVING;
+                   && droneState->isMoving();
     if (dropNow) {
         LOG("Drop condition met"
             << ", target #" << best.targetIndex
@@ -279,7 +283,6 @@ void MissionProcessor::reset() {
     droneMotion.currentDir = config.initialDir;
     droneMotion.turnTargetDir = config.initialDir;
     droneMotion.turnRemainingTime = 0.0;
-    droneMotion.phase = STOPPED;
     droneMotion.currentTargetIndex = -1;
     missionComplete = false;
     targetLocked = false;
@@ -288,10 +291,12 @@ void MissionProcessor::reset() {
     maneuverTargetIndex = -1;
     steps.clear();
 
+    droneState = std::make_unique<StateStopped>();
+
     SimStep initialStep{};
     initialStep.pos = dronePosition;
     initialStep.direction = droneMotion.currentDir;
-    initialStep.state = droneMotion.phase;
+    initialStep.state = droneState->name();
     initialStep.targetIdx = -1;
     steps.push_back(initialStep);
     droneState = std::make_unique<StateStopped>();

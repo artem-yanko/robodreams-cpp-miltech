@@ -19,7 +19,6 @@ static bool moveDroneToPoint(Coord& position, const Coord& dest, double maxDista
 }
 
 std::unique_ptr<IDroneState> StateAccelerating::execute(DroneContext& ctx) {
-  ctx.droneMotion.phase = ACCELERATING;
   double oldSpeed = ctx.droneMotion.currentSpeed;
   ctx.droneMotion.currentSpeed += ctx.acceleration * ctx.config.simTimeStep;
   if (ctx.droneMotion.currentSpeed > ctx.config.attackSpeed) {
@@ -38,4 +37,3 @@ std::unique_ptr<IDroneState> StateAccelerating::execute(DroneContext& ctx) {
 const char* StateAccelerating::name() const {
     return "Accelerating";
 }
-
