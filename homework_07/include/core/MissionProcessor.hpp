@@ -4,6 +4,7 @@
 #include "interfaces/IBallisticSolver.hpp"
 #include "interfaces/IConfigLoader.hpp"
 #include "interfaces/ITargetProvider.hpp"
+#include "interfaces/IDroneState.hpp"
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -23,6 +24,7 @@ private:
     std::unique_ptr<ITargetProvider> targets;
     std::unique_ptr<IBallisticSolver> solver;
     std::unique_ptr<IConfigLoader> configLoader;
+    std::unique_ptr<IDroneState> droneState;
 
     DroneConfig config{};
     std::vector<AmmoParams> ammoList{};

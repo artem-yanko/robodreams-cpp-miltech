@@ -1,5 +1,5 @@
-#include "states/StateMoving.hpp"
 #include "states/StateAccelerating.hpp"
+#include "states/StateMoving.hpp"
 #include "utils/math_utils.hpp"
 
 static bool moveDroneToPoint(Coord& position, const Coord& dest, double maxDistance){
@@ -19,6 +19,7 @@ static bool moveDroneToPoint(Coord& position, const Coord& dest, double maxDista
 }
 
 std::unique_ptr<IDroneState> StateAccelerating::execute(DroneContext& ctx) {
+  ctx.droneMotion.phase = ACCELERATING;
   double oldSpeed = ctx.droneMotion.currentSpeed;
   ctx.droneMotion.currentSpeed += ctx.acceleration * ctx.config.simTimeStep;
   if (ctx.droneMotion.currentSpeed > ctx.config.attackSpeed) {

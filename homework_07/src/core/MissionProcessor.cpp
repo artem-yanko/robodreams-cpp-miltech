@@ -1,5 +1,6 @@
 #include "core/MissionProcessor.hpp"
 #include "core/TargetAnalyzer.hpp"
+#include "states/StateStopped.hpp"
 #include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
 #include "utils/json.hpp"
@@ -282,6 +283,7 @@ bool MissionProcessor::init() {
     initialStep.state = droneMotion.phase;
     initialStep.targetIdx = -1;
     steps.push_back(initialStep);
+    droneState = std::make_unique<StateStopped>();
 
     return true;
 }
@@ -365,7 +367,26 @@ BallisticsResult MissionProcessor::step() {
             << ", horizontalDistance=" << ballistics.horizontalDistance);
     }
 
-    updateDroneMotion(dronePosition, droneMotion, goal, config.simTimeStep, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold);
+    Coord deltaToGoal = goal - dronePosition;
+    if (deltaToGoal.x != 0.0 || deltaToGoal.y != 0.0) {
+        droneMotion.desiredDir = atan2(deltaToGoal.y, deltaToGoal.x);
+    }
+
+    DroneContext ctx{
+        .position = dronePosition,
+        .droneMotion = droneMotion,
+        .goal = goal,
+        .config = config,
+        .acceleration = acceleration,
+        .reachedGoal = false
+    };
+
+  auto next = droneState->execute(ctx);
+  if (next) {
+      droneState = std::move(next);
+  }
+
+    // updateDroneMotion(dronePosition, droneMotion, goal, config.simTimeStep, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold);
     DEBUG("Drone position: (" << dronePosition.x << "," << dronePosition.y << ")"
         << ", dir=" << droneMotion.currentDir
         << ", speed=" << droneMotion.currentSpeed
@@ -429,6 +450,7 @@ void MissionProcessor::reset() {
     initialStep.state = droneMotion.phase;
     initialStep.targetIdx = -1;
     steps.push_back(initialStep);
+    droneState = std::make_unique<StateStopped>();
 }
 
 void MissionProcessor::changeSolver(std::unique_ptr<IBallisticSolver> newSolver) {

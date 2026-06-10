@@ -22,6 +22,7 @@ static bool moveDroneToPoint(Coord& position, const Coord& dest, double maxDista
 }
 
 std::unique_ptr<IDroneState> StateMoving::execute(DroneContext& ctx) {
+  ctx.droneMotion.phase = MOVING;
   double angleLeft = calculateAngleDifference(ctx.droneMotion.currentDir, ctx.droneMotion.desiredDir);
   double turnStep = ctx.config.angularSpeed * ctx.config.simTimeStep;
   double slowTurnThreshold = ctx.config.turnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
