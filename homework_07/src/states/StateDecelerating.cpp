@@ -4,33 +4,29 @@
 #include "utils/math_utils.hpp"
 #include <cmath>
 
-static void moveDroneToStop(Coord& position, double direction, double distance) {
-  position.x += cos(direction) * distance;
-  position.y += sin(direction) * distance;
+static double speedLength(const Coord& speed) {
+    return std::sqrt(speed.x * speed.x + speed.y * speed.y);
 }
 
 std::unique_ptr<IDroneState> StateDecelerating::execute(DroneContext& ctx) {
-  double oldSpeed = ctx.droneMotion.currentSpeed;
-  ctx.droneMotion.currentSpeed -= ctx.acceleration * ctx.config.simTimeStep;
-  if (ctx.droneMotion.currentSpeed < 0.0) {
-    ctx.droneMotion.currentSpeed = 0.0;
-  }
+    double currentSpeed = speedLength(ctx.telemetry.speed);
+    if (currentSpeed <= 0.0) {
+        double angleLeft = calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.desiredDir);
+        ctx.droneMotion.turnTargetDir = ctx.droneMotion.desiredDir;
+        if (std::fabs(angleLeft) > ctx.config.turnThreshold) {
+            ctx.command.mode = DroneMode::Turning;
+            ctx.command.angleSpeed = angleLeft > 0.0 ? ctx.config.angularSpeed : -ctx.config.angularSpeed;
+            return std::make_unique<StateTurning>();
+        }
 
-  double moveDistance = (oldSpeed + ctx.droneMotion.currentSpeed) * ctx.config.simTimeStep / 2.0;
-  moveDroneToStop(ctx.position, ctx.droneMotion.currentDir, moveDistance);
-  if (ctx.droneMotion.currentSpeed == 0.0) {
-    double turnAngle = std::fabs(calculateAngleDifference(ctx.droneMotion.currentDir, ctx.droneMotion.desiredDir));
-    ctx.droneMotion.turnTargetDir = ctx.droneMotion.desiredDir;
-    if (turnAngle > 0.0) {
-      ctx.droneMotion.turnRemainingTime = turnAngle / ctx.config.angularSpeed;
-      return std::make_unique<StateTurning>();
-    } else {
-      ctx.droneMotion.turnRemainingTime = 0.0;
-      return std::make_unique<StateAccelerating>();
+        ctx.command.mode = DroneMode::Accelerating;
+        ctx.command.angleSpeed = 0.0;
+        return std::make_unique<StateAccelerating>();
     }
-  } else {
+
+    ctx.command.mode = DroneMode::Decelerating;
+    ctx.command.angleSpeed = 0.0;
     return nullptr;
-  }
 }
 
 const char* StateDecelerating::name() const {

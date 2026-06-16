@@ -52,7 +52,11 @@ target_include_directories(state_decelerating PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 target_compile_options(state_decelerating PRIVATE -Wall -Wextra -pedantic)
 target_link_libraries(state_decelerating PUBLIC math_utils state_turning state_accelerating)
 
-target_link_libraries(mission_processor PUBLIC target_analyzer math_utils state_stopped state_turning state_accelerating state_moving state_decelerating)
+add_library(drone_physics src/core/DronePhysics.cpp)
+target_include_directories(drone_physics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(drone_physics PRIVATE -Wall -Wextra -pedantic)
+
+target_link_libraries(mission_processor PUBLIC target_analyzer math_utils drone_physics state_stopped state_turning state_accelerating state_moving state_decelerating)
 
 add_library(component_factory src/core/ComponentFactory.cpp)
 target_include_directories(component_factory PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

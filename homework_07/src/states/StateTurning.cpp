@@ -4,28 +4,17 @@
 #include <cmath>
 
 std::unique_ptr<IDroneState> StateTurning::execute(DroneContext& ctx) {
-    double angleLeft = calculateAngleDifference(ctx.droneMotion.currentDir, ctx.droneMotion.turnTargetDir);
-    double turnStep = ctx.config.angularSpeed * ctx.config.simTimeStep;
+    double angleLeft = calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.turnTargetDir);
 
-    if (std::fabs(angleLeft) <= turnStep) {
-      ctx.droneMotion.currentDir = ctx.droneMotion.turnTargetDir;
-      ctx.droneMotion.turnRemainingTime = 0.0;
-      return std::make_unique<StateAccelerating>();
-    } else {
-      if (angleLeft > 0.0) {
-        ctx.droneMotion.currentDir += turnStep;
-        if (ctx.droneMotion.currentDir > M_PI) {
-          ctx.droneMotion.currentDir -= 2.0 * M_PI;
-        }
-      } else {
-        ctx.droneMotion.currentDir -= turnStep;
-        if (ctx.droneMotion.currentDir < -M_PI) {
-          ctx.droneMotion.currentDir += 2.0 * M_PI;
-        }
-      }
-      ctx.droneMotion.turnRemainingTime = (std::fabs(angleLeft) - turnStep) / ctx.config.angularSpeed;
-      return nullptr;
+    if (std::fabs(angleLeft) <= ctx.config.turnThreshold) {
+        ctx.command.mode = DroneMode::Accelerating;
+        ctx.command.angleSpeed = 0.0;
+        return std::make_unique<StateAccelerating>();
     }
+
+    ctx.command.mode = DroneMode::Turning;
+    ctx.command.angleSpeed = angleLeft > 0.0 ? ctx.config.angularSpeed : -ctx.config.angularSpeed;
+    return nullptr;
 }
 
 const char* StateTurning::name() const {

@@ -1,37 +1,22 @@
 #include "states/StateAccelerating.hpp"
 #include "states/StateMoving.hpp"
-#include "utils/math_utils.hpp"
+#include <cmath>
 
-static bool moveDroneToPoint(Coord& position, const Coord& dest, double maxDistance){
-  Coord delta = dest - position;
-  double distance = length(delta);
-  if (distance == 0.0) {
-    return true;
-  }
 
-  if (maxDistance >= distance) {
-      position = dest;
-  return true;
-  }
-
-  position += normalize(delta) * maxDistance;
-  return false;
+static double speedLength(const Coord& speed) {
+    return std::sqrt(speed.x * speed.x + speed.y * speed.y);
 }
 
 std::unique_ptr<IDroneState> StateAccelerating::execute(DroneContext& ctx) {
-  double oldSpeed = ctx.droneMotion.currentSpeed;
-  ctx.droneMotion.currentSpeed += ctx.acceleration * ctx.config.simTimeStep;
-  if (ctx.droneMotion.currentSpeed > ctx.config.attackSpeed) {
-    ctx.droneMotion.currentSpeed = ctx.config.attackSpeed;
-  }
+    ctx.command.mode = DroneMode::Accelerating;
+    ctx.command.angleSpeed = 0.0;
 
-  double moveDistance = (oldSpeed + ctx.droneMotion.currentSpeed) * ctx.config.simTimeStep / 2.0;
-  ctx.reachedGoal = moveDroneToPoint(ctx.position, ctx.goal, moveDistance);
+    if (speedLength(ctx.telemetry.speed) >= ctx.config.attackSpeed) {
+        ctx.command.mode = DroneMode::Moving;
+        return std::make_unique<StateMoving>();
+    }
 
-  if (ctx.droneMotion.currentSpeed >= ctx.config.attackSpeed) {
-    return std::make_unique<StateMoving>();
-  }
-  return nullptr;
+    return nullptr;
 }
 
 const char* StateAccelerating::name() const {

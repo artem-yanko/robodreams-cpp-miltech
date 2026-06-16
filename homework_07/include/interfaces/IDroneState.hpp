@@ -4,12 +4,11 @@
 #include <memory>
 
 struct DroneContext {
-    Coord& position;
+    const DroneTelemetry& telemetry;
     DroneMotionState& droneMotion;
     const Coord& goal;
     const DroneConfig& config;
-    double acceleration;
-    bool reachedGoal{false};
+    DroneCommand& command;
 };
 
 class IDroneState {

@@ -53,6 +53,19 @@ static double calculateDroneAcceleration(double attackSpeed, double acceleration
   return attackSpeed * attackSpeed / (2.0 * accelerationPath);
 }
 
+static double speedLength(const Coord& speed) {
+  return std::sqrt(speed.x * speed.x + speed.y * speed.y);
+}
+
+static int calculatePhysicsStepsPerMissionStep(double simTimeStep, double physicsTimeStep) {
+  if (physicsTimeStep <= 0.0) {
+    return 1;
+  }
+
+  int steps = static_cast<int>(std::lround(simTimeStep / physicsTimeStep));
+  return steps > 0 ? steps : 1;
+}
+
 static bool isInsideRadius(const Coord& point, const Coord& center, double radius) {
   return distanceBetween(point, center) <= radius;
 }
@@ -122,6 +135,7 @@ bool MissionProcessor::init() {
     steps.clear();
 
     droneState = std::make_unique<StateStopped>();
+    dronePhysics = std::make_unique<DronePhysics>(config);
 
     SimStep initialStep{};
     initialStep.pos = dronePosition;
@@ -138,6 +152,11 @@ bool MissionProcessor::hasNext() {
 }
 
 BallisticsResult MissionProcessor::step() {
+    DroneTelemetry telemetry = dronePhysics->getTelemetry();
+    dronePosition = telemetry.pos;
+    droneMotion.currentDir = telemetry.direction;
+    droneMotion.currentSpeed = speedLength(telemetry.speed);
+
     TargetAnalyzer analyzer;
     BestTargetResult best{};
     const bool isTurning = droneState->isTurning();
@@ -221,19 +240,30 @@ BallisticsResult MissionProcessor::step() {
         droneMotion.desiredDir = atan2(deltaToGoal.y, deltaToGoal.x);
     }
 
+    DroneCommand command{};
     DroneContext ctx{
-        .position = dronePosition,
+        .telemetry = telemetry,
         .droneMotion = droneMotion,
         .goal = goal,
         .config = config,
-        .acceleration = acceleration,
-        .reachedGoal = false
+        .command = command
     };
 
-  auto next = droneState->execute(ctx);
-  if (next) {
-      droneState = std::move(next);
-  }
+    auto next = droneState->execute(ctx);
+    if (next) {
+        droneState = std::move(next);
+    }
+
+    dronePhysics->submitCommand(command);
+    int physicsSteps = calculatePhysicsStepsPerMissionStep(config.simTimeStep, config.physicsTimeStep);
+    for (int i = 0; i < physicsSteps; ++i) {
+        dronePhysics->step();
+    }
+
+    telemetry = dronePhysics->getTelemetry();
+    dronePosition = telemetry.pos;
+    droneMotion.currentDir = telemetry.direction;
+    droneMotion.currentSpeed = speedLength(telemetry.speed);
 
     DEBUG("Drone position: (" << dronePosition.x << "," << dronePosition.y << ")"
         << ", dir=" << droneMotion.currentDir
@@ -292,6 +322,7 @@ void MissionProcessor::reset() {
     steps.clear();
 
     droneState = std::make_unique<StateStopped>();
+    dronePhysics = std::make_unique<DronePhysics>(config);
 
     SimStep initialStep{};
     initialStep.pos = dronePosition;
@@ -299,7 +330,6 @@ void MissionProcessor::reset() {
     initialStep.state = droneState->name();
     initialStep.targetIdx = -1;
     steps.push_back(initialStep);
-    droneState = std::make_unique<StateStopped>();
 }
 
 void MissionProcessor::changeSolver(std::unique_ptr<IBallisticSolver> newSolver) {

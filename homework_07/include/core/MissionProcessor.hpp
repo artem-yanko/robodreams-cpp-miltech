@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/DronePhysics.hpp"
 #include "domain/types.hpp"
 #include "interfaces/IBallisticSolver.hpp"
 #include "interfaces/IConfigLoader.hpp"
@@ -25,6 +26,7 @@ private:
     std::unique_ptr<IBallisticSolver> solver;
     std::unique_ptr<IConfigLoader> configLoader;
     std::unique_ptr<IDroneState> droneState;
+    std::unique_ptr<DronePhysics> dronePhysics;
 
     DroneConfig config{};
     std::vector<AmmoParams> ammoList{};
