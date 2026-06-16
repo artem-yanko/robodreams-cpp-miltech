@@ -1,0 +1,33 @@
+#pragma once
+
+#include <mutex>
+#include <queue>
+
+template <typename T>
+class ThreadSafeQueue {
+public:
+    void push(const T& value) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_.push(value);
+    }
+
+    bool tryPop(T& value) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (queue_.empty()) {
+            return false;
+        }
+
+        value = queue_.front();
+        queue_.pop();
+        return true;
+    }
+
+    bool empty() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return queue_.empty();
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::queue<T> queue_;
+};

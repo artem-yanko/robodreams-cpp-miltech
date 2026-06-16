@@ -81,3 +81,23 @@ struct Target {
     Coord position{};
     Coord velocity{};
 };
+
+enum class DroneMode {
+    Stopped,
+    Accelerating,
+    Decelerating,
+    Turning,
+    Moving
+};
+
+struct DroneCommand {
+    DroneMode mode{DroneMode::Stopped};
+    double angleSpeed{};
+};
+
+struct DroneTelemetry {
+    Coord pos{};
+    Coord speed{};
+    double direction{};
+    DroneMode mode{DroneMode::Stopped};
+};
