@@ -29,9 +29,21 @@ bool JsonConfigLoader::loadConfig(DroneConfig& config) {
     config.turnThreshold = configJson["drone"]["turnThreshold"];
     config.ammoName = configJson["ammo"].get<std::string>();
 
-    config.arrayTimeStep = configJson["targetArrayTimeStep"];
+    config.arrayTimeStep = configJson["simulation"]["targetTimeStep"];
     config.simTimeStep = configJson["simulation"]["timeStep"];
     config.hitRadius = configJson["simulation"]["hitRadius"];
+
+    if (configJson["simulation"].contains("physicsTimeStep")) {
+        config.physicsTimeStep = configJson["simulation"]["physicsTimeStep"];
+    } else {
+        config.physicsTimeStep = config.simTimeStep;
+    }
+
+    if (configJson["simulation"].contains("timeScale")) {
+        config.timeScale = configJson["simulation"]["timeScale"];
+    } else {
+        config.timeScale = 1.0;
+    }
 
     return true;
 }

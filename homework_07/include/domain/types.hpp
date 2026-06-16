@@ -30,6 +30,8 @@ struct DroneConfig {
     std::string ammoName{};
     double arrayTimeStep{};
     double simTimeStep{};
+    double physicsTimeStep{};
+    double timeScale{1.0};
     double hitRadius{};
     double angularSpeed{};
     double turnThreshold{};
