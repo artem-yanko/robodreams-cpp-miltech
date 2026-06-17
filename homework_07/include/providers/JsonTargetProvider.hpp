@@ -10,15 +10,15 @@ public:
     bool loadTargets() override;
     int getTargetCount() const override;
     Target getTarget(int index) const override;
-
-    void step(double targetTimeStep);
+    void step(double targetTimeStep, double arrayTimeStep) override;
 
 private:
     std::string targetPath_;
     void clearTargets();
-    void updateCurrentTargets(double targetTimeStep);
+    void updateCurrentTargets(double targetTimeStep, double arrayTimeStep);
+    Coord interpolateTargetPosition(int targetIndex, double time, double arrayTimeStep) const;
 
     TargetData trajectoryData_{};
     std::vector<Target> currentTargets_{};
-    int currentStep_{0};
+    double currentTime_{0.0};
 };

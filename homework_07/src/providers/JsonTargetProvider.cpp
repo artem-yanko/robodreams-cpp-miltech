@@ -3,6 +3,7 @@
 #include "utils/logger.hpp"
 #include "utils/json.hpp"
 
+#include <cmath>
 #include <fstream>
 #include <string>
 
@@ -17,7 +18,7 @@ void JsonTargetProvider::clearTargets() {
     trajectoryData_.targetCount = 0;
     trajectoryData_.timeSteps = 0;
     currentTargets_.clear();
-    currentStep_ = 0;
+    currentTime_ = 0.0;
 }
 
 JsonTargetProvider::~JsonTargetProvider() {
@@ -53,7 +54,10 @@ bool JsonTargetProvider::loadTargets() {
     }
 
     currentTargets_.resize(trajectoryData_.targetCount);
-    updateCurrentTargets(0.0);
+    for (int i = 0; i < trajectoryData_.targetCount; ++i) {
+        currentTargets_[i].position = trajectoryData_.positions[i].front();
+        currentTargets_[i].velocity = {};
+    }
     return true;
 }
 
@@ -69,33 +73,52 @@ Target JsonTargetProvider::getTarget(int index) const {
     return currentTargets_[index];
 }
 
-void JsonTargetProvider::step(double targetTimeStep) {
+void JsonTargetProvider::step(double targetTimeStep, double arrayTimeStep) {
     if (trajectoryData_.timeSteps <= 0 || trajectoryData_.targetCount <= 0) {
         return;
     }
 
-    if (currentStep_ + 1 < trajectoryData_.timeSteps) {
-        ++currentStep_;
-    }
-
-    updateCurrentTargets(targetTimeStep);
+    currentTime_ += targetTimeStep;
+    updateCurrentTargets(targetTimeStep, arrayTimeStep);
 }
 
-void JsonTargetProvider::updateCurrentTargets(double targetTimeStep) {
+Coord JsonTargetProvider::interpolateTargetPosition(int targetIndex, double time, double arrayTimeStep) const {
+    if (targetIndex < 0 || targetIndex >= trajectoryData_.targetCount || trajectoryData_.timeSteps <= 0) {
+        return {};
+    }
+
+    if (arrayTimeStep <= 0.0) {
+        return trajectoryData_.positions[targetIndex].front();
+    }
+
+    double targetTime = time / arrayTimeStep;
+    int baseIdx = static_cast<int>(std::floor(targetTime));
+    int idx = baseIdx % trajectoryData_.timeSteps;
+    if (idx < 0) {
+        idx += trajectoryData_.timeSteps;
+    }
+    int next = (idx + 1) % trajectoryData_.timeSteps;
+    double frac = targetTime - baseIdx;
+
+    return trajectoryData_.positions[targetIndex][idx] +
+           (trajectoryData_.positions[targetIndex][next] - trajectoryData_.positions[targetIndex][idx]) * frac;
+}
+
+void JsonTargetProvider::updateCurrentTargets(double targetTimeStep, double arrayTimeStep) {
     if (trajectoryData_.targetCount <= 0 || trajectoryData_.timeSteps <= 0) {
         return;
     }
 
     for (int i = 0; i < trajectoryData_.targetCount; ++i) {
         Target& target = currentTargets_[i];
-        target.position = trajectoryData_.positions[i][currentStep_];
+        Coord previousPosition = target.position;
+        target.position = interpolateTargetPosition(i, currentTime_, arrayTimeStep);
 
-        if (targetTimeStep <= 0.0 || currentStep_ + 1 >= trajectoryData_.timeSteps) {
+        if (targetTimeStep <= 0.0) {
             target.velocity = {};
             continue;
         }
 
-        Coord nextPosition = trajectoryData_.positions[i][currentStep_ + 1];
-        target.velocity = (nextPosition - target.position) / targetTimeStep;
+        target.velocity = (target.position - previousPosition) / targetTimeStep;
     }
 }

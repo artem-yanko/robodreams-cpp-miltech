@@ -29,6 +29,7 @@ bool JsonConfigLoader::loadConfig(DroneConfig& config) {
     config.turnThreshold = configJson["drone"]["turnThreshold"];
     config.ammoName = configJson["ammo"].get<std::string>();
 
+    config.targetTimeStep = configJson["simulation"]["targetTimeStep"];
     config.arrayTimeStep = configJson["targetArrayTimeStep"];
     config.simTimeStep = configJson["simulation"]["timeStep"];
     config.hitRadius = configJson["simulation"]["hitRadius"];

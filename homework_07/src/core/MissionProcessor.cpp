@@ -66,6 +66,15 @@ static int calculatePhysicsStepsPerMissionStep(double simTimeStep, double physic
   return steps > 0 ? steps : 1;
 }
 
+static int calculateTargetStepsPerMissionStep(double simTimeStep, double targetTimeStep) {
+  if (targetTimeStep <= 0.0) {
+    return 1;
+  }
+
+  int steps = static_cast<int>(std::lround(simTimeStep / targetTimeStep));
+  return steps > 0 ? steps : 1;
+}
+
 static bool isInsideRadius(const Coord& point, const Coord& center, double radius) {
   return distanceBetween(point, center) <= radius;
 }
@@ -166,7 +175,7 @@ BallisticsResult MissionProcessor::step() {
 
     bool targetSelected = false;
     if (targetLocked) {
-        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets->getTargetsData(), lockedTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver);
+        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets->getTarget(lockedTargetIndex), lockedTargetIndex, dronePosition, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Locked target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -175,7 +184,7 @@ BallisticsResult MissionProcessor::step() {
                 << ", needManeuver=" << best.needManeuver);
         }
     } else {
-        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, targets->getTargetsData(), simulationTime, ballistics, acceleration, returningFromManuver);
+        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, *targets, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Selected target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -258,6 +267,10 @@ BallisticsResult MissionProcessor::step() {
     int physicsSteps = calculatePhysicsStepsPerMissionStep(config.simTimeStep, config.physicsTimeStep);
     for (int i = 0; i < physicsSteps; ++i) {
         dronePhysics->step();
+    }
+    int targetSteps = calculateTargetStepsPerMissionStep(config.simTimeStep, config.targetTimeStep);
+    for (int i = 0; i < targetSteps; ++i) {
+        targets->step(config.targetTimeStep, config.arrayTimeStep);
     }
 
     telemetry = dronePhysics->getTelemetry();
