@@ -6,14 +6,58 @@
 #include <cmath>
 #include <fstream>
 #include <string>
-
+#include <chrono>
+#include <thread>
 using json = nlohmann::json;
 
 JsonTargetProvider::JsonTargetProvider(const std::string& targetPath)
     : targetPath_(targetPath) {
 }
 
+void JsonTargetProvider::run(double targetTimeStep, double arrayTimeStep, double timeScale) {
+    threadReady_ = true;
+    DEBUG("Target provider thread ready");
+
+    while (running_ && !started_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    DEBUG("Target provider thread started");
+
+    const double normalizedTimeScale = timeScale > 0.0 ? timeScale : 1.0;
+    auto lastTick = std::chrono::steady_clock::now();
+    double accumulatedSimTime = 0.0;
+    while (running_) {
+        auto now = std::chrono::steady_clock::now();
+        accumulatedSimTime += std::chrono::duration<double>(now - lastTick).count() * normalizedTimeScale;
+        lastTick = now;
+
+        while (running_ && accumulatedSimTime >= targetTimeStep) {
+            step(targetTimeStep, arrayTimeStep);
+            accumulatedSimTime -= targetTimeStep;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    DEBUG("Target provider thread stopped");
+}
+
+void JsonTargetProvider::start() {
+    started_ = true;
+    DEBUG("Target provider start signal received");
+}
+
+void JsonTargetProvider::stop() {
+    running_ = false;
+    DEBUG("Target provider stop signal received");
+}
+
+bool JsonTargetProvider::isThreadReady() const {
+    return threadReady_;
+}
+
 void JsonTargetProvider::clearTargets() {
+    std::lock_guard<std::mutex> lock(currentTargetsMutex_);
     trajectoryData_.positions.clear();
     trajectoryData_.targetCount = 0;
     trajectoryData_.timeSteps = 0;
@@ -58,14 +102,18 @@ bool JsonTargetProvider::loadTargets() {
         currentTargets_[i].position = trajectoryData_.positions[i].front();
         currentTargets_[i].velocity = {};
     }
+    DEBUG("Target provider loaded " << trajectoryData_.targetCount
+        << " targets with " << trajectoryData_.timeSteps << " trajectory steps");
     return true;
 }
 
 int JsonTargetProvider::getTargetCount() const {
-    return trajectoryData_.targetCount;
+    std::lock_guard<std::mutex> lock(currentTargetsMutex_);
+    return static_cast<int>(currentTargets_.size());
 }
 
 Target JsonTargetProvider::getTarget(int index) const {
+    std::lock_guard<std::mutex> lock(currentTargetsMutex_);
     if (index < 0 || index >= static_cast<int>(currentTargets_.size())) {
         return {};
     }
@@ -78,6 +126,7 @@ void JsonTargetProvider::step(double targetTimeStep, double arrayTimeStep) {
         return;
     }
 
+    std::lock_guard<std::mutex> lock(currentTargetsMutex_);
     currentTime_ += targetTimeStep;
     updateCurrentTargets(targetTimeStep, arrayTimeStep);
 }

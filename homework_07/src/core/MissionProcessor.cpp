@@ -4,8 +4,10 @@
 #include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
 #include "utils/json.hpp"
+#include <chrono>
 #include <cmath>
 #include <fstream>
+#include <thread>
 
 static bool writeSimulationJson(const std::vector<SimStep>& steps) {
   std::ofstream outputFile("simulation.json");
@@ -57,26 +59,25 @@ static double speedLength(const Coord& speed) {
   return std::sqrt(speed.x * speed.x + speed.y * speed.y);
 }
 
-static int calculatePhysicsStepsPerMissionStep(double simTimeStep, double physicsTimeStep) {
-  if (physicsTimeStep <= 0.0) {
-    return 1;
-  }
-
-  int steps = static_cast<int>(std::lround(simTimeStep / physicsTimeStep));
-  return steps > 0 ? steps : 1;
-}
-
-static int calculateTargetStepsPerMissionStep(double simTimeStep, double targetTimeStep) {
-  if (targetTimeStep <= 0.0) {
-    return 1;
-  }
-
-  int steps = static_cast<int>(std::lround(simTimeStep / targetTimeStep));
-  return steps > 0 ? steps : 1;
-}
-
 static bool isInsideRadius(const Coord& point, const Coord& center, double radius) {
   return distanceBetween(point, center) <= radius;
+}
+
+static const char* modeName(DroneMode mode) {
+  switch (mode) {
+  case DroneMode::Stopped:
+    return "Stopped";
+  case DroneMode::Accelerating:
+    return "Accelerating";
+  case DroneMode::Decelerating:
+    return "Decelerating";
+  case DroneMode::Turning:
+    return "Turning";
+  case DroneMode::Moving:
+    return "Moving";
+  }
+
+  return "Unknown";
 }
 
 MissionProcessor::~MissionProcessor() = default;
@@ -92,6 +93,50 @@ MissionProcessor::MissionProcessor(std::unique_ptr<ITargetProvider> targets, std
         returningFromManuver = false;
         maneuverTargetIndex = -1;
     }
+
+void MissionProcessor::run() {
+    threadReady_ = true;
+    DEBUG("MissionProcessor thread ready");
+
+    while (running_ && !started_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    DEBUG("MissionProcessor thread started");
+
+    const double timeScale = config.timeScale > 0.0 ? config.timeScale : 1.0;
+    auto lastTick = std::chrono::steady_clock::now();
+    double accumulatedSimTime = 0.0;
+
+    while (running_ && hasNext()) {
+        auto now = std::chrono::steady_clock::now();
+        accumulatedSimTime += std::chrono::duration<double>(now - lastTick).count() * timeScale;
+        lastTick = now;
+
+        while (running_ && hasNext() && accumulatedSimTime >= config.simTimeStep) {
+            step();
+            accumulatedSimTime -= config.simTimeStep;
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+
+    running_ = false;
+    DEBUG("MissionProcessor thread stopped");
+}
+
+void MissionProcessor::start() {
+    started_ = true;
+    DEBUG("MissionProcessor start signal received");
+}
+
+void MissionProcessor::stop() {
+    running_ = false;
+    DEBUG("MissionProcessor stop signal received");
+}
+
+bool MissionProcessor::isThreadReady() const {
+    return threadReady_;
+}
 
 bool MissionProcessor::init() {
     simulationTime = 0.0;
@@ -263,16 +308,11 @@ BallisticsResult MissionProcessor::step() {
         droneState = std::move(next);
     }
 
-    dronePhysics->submitCommand(command);
-    int physicsSteps = calculatePhysicsStepsPerMissionStep(config.simTimeStep, config.physicsTimeStep);
-    for (int i = 0; i < physicsSteps; ++i) {
-        dronePhysics->step();
-    }
-    int targetSteps = calculateTargetStepsPerMissionStep(config.simTimeStep, config.targetTimeStep);
-    for (int i = 0; i < targetSteps; ++i) {
-        targets->step(config.targetTimeStep, config.arrayTimeStep);
-    }
+    DEBUG("MissionProcessor command prepared: mode=" << modeName(command.mode)
+        << ", angleSpeed=" << command.angleSpeed
+        << ", goal=(" << goal.x << "," << goal.y << ")");
 
+    dronePhysics->submitCommand(command);
     telemetry = dronePhysics->getTelemetry();
     dronePosition = telemetry.pos;
     droneMotion.currentDir = telemetry.direction;
@@ -360,4 +400,16 @@ void MissionProcessor::changeSolver(std::unique_ptr<IBallisticSolver> newSolver)
     }
 
     ballistics = solver->solve(config, ammoList[selectedAmmo->second]);
+}
+
+ITargetProvider& MissionProcessor::getTargetProvider() {
+    return *targets;
+}
+
+DronePhysics& MissionProcessor::getDronePhysics() {
+    return *dronePhysics;
+}
+
+const DroneConfig& MissionProcessor::getConfig() const {
+    return config;
 }

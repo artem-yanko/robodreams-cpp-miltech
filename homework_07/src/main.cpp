@@ -1,6 +1,8 @@
 #include "utils/logger.hpp"
 
 #include "core/ComponentFactory.hpp"
+#include <chrono>
+#include <thread>
 #include <utility>
 
 int main(int argc, char* argv[]) {
@@ -24,9 +26,33 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    while (mission->hasNext()) {
-        mission->step();
+    ITargetProvider& targetProviderRef = mission->getTargetProvider();
+    DronePhysics& dronePhysicsRef = mission->getDronePhysics();
+    const DroneConfig& config = mission->getConfig();
+
+    std::thread providerThread([&]() {
+        targetProviderRef.run(config.targetTimeStep, config.arrayTimeStep, config.timeScale);
+    });
+    std::thread physicsThread([&]() {
+        dronePhysicsRef.run();
+    });
+    std::thread missionThread([&]() {
+        mission->run();
+    });
+
+    while (!targetProviderRef.isThreadReady() || !dronePhysicsRef.isThreadReady() || !mission->isThreadReady()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+
+    targetProviderRef.start();
+    dronePhysicsRef.start();
+    mission->start();
+
+    missionThread.join();
+    targetProviderRef.stop();
+    dronePhysicsRef.stop();
+    providerThread.join();
+    physicsThread.join();
 
     return 0;
 }

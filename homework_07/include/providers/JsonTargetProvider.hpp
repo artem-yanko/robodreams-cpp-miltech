@@ -2,10 +2,18 @@
 
 #include "interfaces/ITargetProvider.hpp"
 #include <string>
+#include <atomic>
+#include <mutex>
 
 class JsonTargetProvider : public ITargetProvider {
 public:
     explicit JsonTargetProvider(const std::string& targetPath = "targets.json");
+
+    void run(double targetTimeStep, double arrayTimeStep, double timeScale) override;
+    void start() override;
+    void stop() override;
+    bool isThreadReady() const override;
+
     ~JsonTargetProvider() override;
     bool loadTargets() override;
     int getTargetCount() const override;
@@ -21,4 +29,8 @@ private:
     TargetData trajectoryData_{};
     std::vector<Target> currentTargets_{};
     double currentTime_{0.0};
+    mutable std::mutex currentTargetsMutex_{};
+    std::atomic<bool> running_{true};
+    std::atomic<bool> started_{false};
+    std::atomic<bool> threadReady_{false};
 };
