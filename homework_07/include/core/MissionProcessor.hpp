@@ -52,11 +52,6 @@ private:
     int candidateTargetStreak{};
     bool returningFromManuver{};
     int maneuverTargetIndex{};
-    bool hasPreviousLockedPlan_{false};
-    int previousLockedPlanTargetIndex_{-1};
-    bool previousLockedPlanNeedManeuver_{false};
-    Coord previousLockedPlanDropPoint_{};
-    Coord previousLockedPlanPredictedTarget_{};
     std::vector<SimStep> steps{};
     std::atomic<bool> running_{true};
     std::atomic<bool> started_{false};

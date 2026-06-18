@@ -94,8 +94,6 @@ MissionProcessor::MissionProcessor(std::unique_ptr<ITargetProvider> targets, std
         candidateTargetStreak = 0;
         returningFromManuver = false;
         maneuverTargetIndex = -1;
-        hasPreviousLockedPlan_ = false;
-        previousLockedPlanTargetIndex_ = -1;
     }
 
 void MissionProcessor::run() {
@@ -202,8 +200,6 @@ bool MissionProcessor::init() {
     candidateTargetStreak = 0;
     returningFromManuver = false;
     maneuverTargetIndex = -1;
-    hasPreviousLockedPlan_ = false;
-    previousLockedPlanTargetIndex_ = -1;
     steps.clear();
 
     droneState = std::make_unique<StateStopped>();
@@ -256,8 +252,6 @@ BallisticsResult MissionProcessor::step() {
             candidateTargetStreak = 0;
             returningFromManuver = false;
             maneuverTargetIndex = -1;
-            hasPreviousLockedPlan_ = false;
-            previousLockedPlanTargetIndex_ = -1;
             droneMotion.currentTargetIndex = -1;
 
             targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, *targets, simulationTime, ballistics, acceleration, returningFromManuver);
@@ -351,41 +345,6 @@ BallisticsResult MissionProcessor::step() {
             << ", horizontalDistance=" << ballistics.horizontalDistance);
     }
 
-    if (targetLocked) {
-        if (hasPreviousLockedPlan_
-            && previousLockedPlanTargetIndex_ == best.targetIndex) {
-            double dropShift = distanceBetween(previousLockedPlanDropPoint_, best.dropPoint);
-            double predictedShift = distanceBetween(previousLockedPlanPredictedTarget_, best.predictedTarget);
-            if (!previousLockedPlanNeedManeuver_ && best.needManeuver) {
-                DEBUG("Locked approach break: target=" << best.targetIndex
-                    << ", state=" << currentMode
-                    << ", speed=" << droneMotion.currentSpeed
-                    << ", dropShift=" << dropShift
-                    << ", predictedShift=" << predictedShift
-                    << ", prevDrop=(" << previousLockedPlanDropPoint_.x << "," << previousLockedPlanDropPoint_.y << ")"
-                    << ", newDrop=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
-                    << ", prevPredicted=(" << previousLockedPlanPredictedTarget_.x << "," << previousLockedPlanPredictedTarget_.y << ")"
-                    << ", newPredicted=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")");
-            } else if (dropShift > config.hitRadius || predictedShift > config.hitRadius) {
-                DEBUG("Locked approach drift: target=" << best.targetIndex
-                    << ", state=" << currentMode
-                    << ", speed=" << droneMotion.currentSpeed
-                    << ", dropShift=" << dropShift
-                    << ", predictedShift=" << predictedShift
-                    << ", needManeuver=" << best.needManeuver);
-            }
-        }
-
-        hasPreviousLockedPlan_ = true;
-        previousLockedPlanTargetIndex_ = best.targetIndex;
-        previousLockedPlanNeedManeuver_ = best.needManeuver;
-        previousLockedPlanDropPoint_ = best.dropPoint;
-        previousLockedPlanPredictedTarget_ = best.predictedTarget;
-    } else {
-        hasPreviousLockedPlan_ = false;
-        previousLockedPlanTargetIndex_ = -1;
-    }
-
     Coord deltaToGoal = goal - dronePosition;
     if (deltaToGoal.x != 0.0 || deltaToGoal.y != 0.0) {
         droneMotion.desiredDir = atan2(deltaToGoal.y, deltaToGoal.x);
@@ -448,8 +407,6 @@ BallisticsResult MissionProcessor::step() {
         candidateTargetStreak = 0;
         returningFromManuver = false;
         maneuverTargetIndex = -1;
-        hasPreviousLockedPlan_ = false;
-        previousLockedPlanTargetIndex_ = -1;
         missionComplete = true;
         simulationTime += config.simTimeStep;
         return ballistics;
@@ -474,8 +431,6 @@ void MissionProcessor::reset() {
     candidateTargetStreak = 0;
     returningFromManuver = false;
     maneuverTargetIndex = -1;
-    hasPreviousLockedPlan_ = false;
-    previousLockedPlanTargetIndex_ = -1;
     steps.clear();
 
     droneState = std::make_unique<StateStopped>();

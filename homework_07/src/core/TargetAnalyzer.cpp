@@ -202,7 +202,6 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
     Coord dropPoint{};
     Coord maneuverPoint{};
     bool needManeuver = false;
-    bool maneuverDetected = false;
     double totalTime = 0.0;
     Coord predictedTarget = target.position;
     double remainingAccelerationDistance =
@@ -211,9 +210,6 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
     for (int iteration = 0; iteration < TARGET_PREDICTION_ITERATIONS; ++iteration) {
         predictedTarget = predictTargetPosition(target, totalTime + ballistics.flightTime);
         calculateDropPoint(dropPoint, maneuverPoint, needManeuver, predictedTarget, dronePosition, ballistics.horizontalDistance, remainingAccelerationDistance);
-        if (needManeuver) {
-            maneuverDetected = true;
-        }
 
         if (returningFromManuver && targetIndex == droneMotion.currentTargetIndex) {
             needManeuver = false;
@@ -271,23 +267,10 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
         }
 
         needManeuver = true;
-        maneuverDetected = true;
         maneuverPoint = recoveryManeuverPoint;
         dropPoint = recoveryDropPoint;
         predictedTarget = recoveryPredictedTarget;
         totalTime = recoveryTotalTime;
-    }
-
-    if (maneuverDetected) {
-        DEBUG("Target " << targetIndex
-            << " maneuver diagnostics: currentSpeed=" << droneMotion.currentSpeed
-            << ", distanceToPredictedTarget=" << distanceBetween(dronePosition, predictedTarget)
-            << ", distanceToDropPoint=" << distanceToDropPoint
-            << ", requiredAccelerationDistance=" << requiredAccelerationDistance
-            << ", predictedTarget=(" << predictedTarget.x << "," << predictedTarget.y << ")"
-            << ", dropPoint=(" << dropPoint.x << "," << dropPoint.y << ")"
-            << ", maneuverPoint=(" << maneuverPoint.x << "," << maneuverPoint.y << ")"
-            << ", totalTime=" << totalTime);
     }
 
     best.targetIndex = targetIndex;
