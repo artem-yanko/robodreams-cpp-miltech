@@ -5,6 +5,7 @@
 
 static const double VERY_LARGE_TIME = 1e18;
 static const int TARGET_PREDICTION_ITERATIONS = 3;
+static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
 
 static double calculateTimeToStop(bool isTurning, double currentSpeed, double acceleration, double turnRemainingTime) {
     if (isTurning) {
@@ -88,7 +89,8 @@ static bool estimateTimeToCompleteMove(double& totalTime, double& currentSpeed, 
 
     double goalDir = atan2(deltaToGoal.y, deltaToGoal.x);
     double deltaAngle = fabs(calculateAngleDifference(currentDir, goalDir));
-    if (deltaAngle > turnThreshold) {
+    double slowTurnThreshold = turnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
+    if (deltaAngle > slowTurnThreshold) {
         if (currentSpeed > 0.0) {
             if (acceleration <= 0.0) {
                 return false;
@@ -110,6 +112,14 @@ static bool estimateTimeToCompleteMove(double& totalTime, double& currentSpeed, 
         currentSpeed = attackSpeed;
 
         return true;
+    }
+
+    if (deltaAngle > turnThreshold) {
+        if (angularSpeed <= 0.0) {
+            return false;
+        }
+
+        totalTime += deltaAngle / angularSpeed;
     }
 
     currentDir = goalDir;
