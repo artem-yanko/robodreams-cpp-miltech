@@ -90,6 +90,8 @@ MissionProcessor::MissionProcessor(std::unique_ptr<ITargetProvider> targets, std
         missionComplete = false;
         targetLocked = false;
         lockedTargetIndex = -1;
+        candidateTargetIndex = -1;
+        candidateTargetStreak = 0;
         returningFromManuver = false;
         maneuverTargetIndex = -1;
     }
@@ -102,6 +104,8 @@ void MissionProcessor::run() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     DEBUG("MissionProcessor thread started");
+    dronePhysics->setAllowedSimTime(simulationTime);
+    targets->setAllowedSimTime(simulationTime);
 
     const double timeScale = config.timeScale > 0.0 ? config.timeScale : 1.0;
     auto lastTick = std::chrono::steady_clock::now();
@@ -113,7 +117,15 @@ void MissionProcessor::run() {
         lastTick = now;
 
         while (running_ && hasNext() && accumulatedSimTime >= config.simTimeStep) {
+            while (running_
+                && (dronePhysics->getCurrentSimTime() < simulationTime
+                || targets->getCurrentSimTime() < simulationTime)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+
             step();
+            dronePhysics->setAllowedSimTime(simulationTime);
+            targets->setAllowedSimTime(simulationTime);
             accumulatedSimTime -= config.simTimeStep;
         }
 
@@ -184,6 +196,8 @@ bool MissionProcessor::init() {
     missionComplete = false;
     targetLocked = false;
     lockedTargetIndex = -1;
+    candidateTargetIndex = -1;
+    candidateTargetStreak = 0;
     returningFromManuver = false;
     maneuverTargetIndex = -1;
     steps.clear();
@@ -206,10 +220,12 @@ bool MissionProcessor::hasNext() {
 }
 
 BallisticsResult MissionProcessor::step() {
-    DroneTelemetry telemetry = dronePhysics->getTelemetry();
+    DroneTelemetry telemetry = dronePhysics->getTelemetryAt(simulationTime);
     dronePosition = telemetry.pos;
     droneMotion.currentDir = telemetry.direction;
     droneMotion.currentSpeed = speedLength(telemetry.speed);
+    const bool isCurrentlyMoving = telemetry.mode == DroneMode::Moving;
+    const char* currentMode = modeName(telemetry.mode);
 
     TargetAnalyzer analyzer;
     BestTargetResult best{};
@@ -220,7 +236,7 @@ BallisticsResult MissionProcessor::step() {
 
     bool targetSelected = false;
     if (targetLocked) {
-        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets->getTarget(lockedTargetIndex), lockedTargetIndex, dronePosition, ballistics, acceleration, returningFromManuver);
+        targetSelected = analyzer.evaluateTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets->getTargetAt(lockedTargetIndex, simulationTime), lockedTargetIndex, dronePosition, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Locked target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -229,7 +245,7 @@ BallisticsResult MissionProcessor::step() {
                 << ", needManeuver=" << best.needManeuver);
         }
     } else {
-        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, *targets, ballistics, acceleration, returningFromManuver);
+        targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, *targets, simulationTime, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
             DEBUG("Selected target " << best.targetIndex
                 << ": totalTime=" << best.totalTime
@@ -246,6 +262,18 @@ BallisticsResult MissionProcessor::step() {
     }
 
     droneMotion.currentTargetIndex = best.targetIndex;
+
+    if (!targetLocked) {
+        if (best.targetIndex == candidateTargetIndex) {
+            ++candidateTargetStreak;
+        } else {
+            candidateTargetIndex = best.targetIndex;
+            candidateTargetStreak = 1;
+        }
+    } else {
+        candidateTargetIndex = lockedTargetIndex;
+        candidateTargetStreak = 0;
+    }
 
     if (best.targetIndex != maneuverTargetIndex) {
         returningFromManuver = false;
@@ -266,6 +294,8 @@ BallisticsResult MissionProcessor::step() {
         best.needManeuver = false;
         targetLocked = true;
         lockedTargetIndex = best.targetIndex;
+        candidateTargetIndex = best.targetIndex;
+        candidateTargetStreak = 0;
         DEBUG("Reached maneuver point for target " << best.targetIndex);
     }
 
@@ -276,14 +306,24 @@ BallisticsResult MissionProcessor::step() {
         maneuverTargetIndex = best.targetIndex;
         targetLocked = true;
         lockedTargetIndex = best.targetIndex;
+        candidateTargetIndex = best.targetIndex;
+        candidateTargetStreak = 0;
     } else {
         goal = best.dropPoint;
+        if (!targetLocked && candidateTargetStreak >= 2) {
+            targetLocked = true;
+            lockedTargetIndex = best.targetIndex;
+            candidateTargetStreak = 0;
+            DEBUG("Target committed after repeated selection: " << lockedTargetIndex);
+        }
     }
 
     double distanceToDropPoint = distanceBetween(dronePosition, best.dropPoint);
     if (!headingToManeuver && droneState->isMoving() && !targetLocked && distanceToDropPoint <= ballistics.horizontalDistance) {
         targetLocked = true;
         lockedTargetIndex = best.targetIndex;
+        candidateTargetIndex = best.targetIndex;
+        candidateTargetStreak = 0;
         DEBUG("Target locked: " << lockedTargetIndex
             << ", distanceToDropPoint=" << distanceToDropPoint
             << ", horizontalDistance=" << ballistics.horizontalDistance);
@@ -308,15 +348,14 @@ BallisticsResult MissionProcessor::step() {
         droneState = std::move(next);
     }
 
+    command.effectiveFromSimTime = simulationTime;
+
     DEBUG("MissionProcessor command prepared: mode=" << modeName(command.mode)
         << ", angleSpeed=" << command.angleSpeed
+        << ", effectiveFromSimTime=" << command.effectiveFromSimTime
         << ", goal=(" << goal.x << "," << goal.y << ")");
 
     dronePhysics->submitCommand(command);
-    telemetry = dronePhysics->getTelemetry();
-    dronePosition = telemetry.pos;
-    droneMotion.currentDir = telemetry.direction;
-    droneMotion.currentSpeed = speedLength(telemetry.speed);
 
     DEBUG("Drone position: (" << dronePosition.x << "," << dronePosition.y << ")"
         << ", dir=" << droneMotion.currentDir
@@ -327,7 +366,7 @@ BallisticsResult MissionProcessor::step() {
     SimStep currentStep{};
     currentStep.pos = dronePosition;
     currentStep.direction = droneMotion.currentDir;
-    currentStep.state = droneState->name();
+    currentStep.state = currentMode;
     currentStep.targetIdx = best.targetIndex;
     currentStep.dropPoint = best.dropPoint;
     currentStep.predictedTarget = best.predictedTarget;
@@ -335,7 +374,7 @@ BallisticsResult MissionProcessor::step() {
     steps.push_back(currentStep);
 
     bool dropNow = !headingToManeuver && isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
-                   && droneState->isMoving();
+                   && isCurrentlyMoving;
     if (dropNow) {
         LOG("Drop condition met"
             << ", target #" << best.targetIndex
@@ -348,6 +387,8 @@ BallisticsResult MissionProcessor::step() {
         }
         targetLocked = false;
         lockedTargetIndex = -1;
+        candidateTargetIndex = -1;
+        candidateTargetStreak = 0;
         returningFromManuver = false;
         maneuverTargetIndex = -1;
         missionComplete = true;
@@ -370,6 +411,8 @@ void MissionProcessor::reset() {
     missionComplete = false;
     targetLocked = false;
     lockedTargetIndex = -1;
+    candidateTargetIndex = -1;
+    candidateTargetStreak = 0;
     returningFromManuver = false;
     maneuverTargetIndex = -1;
     steps.clear();

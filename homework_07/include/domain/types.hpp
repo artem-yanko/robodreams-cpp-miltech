@@ -94,6 +94,7 @@ enum class DroneMode {
 struct DroneCommand {
     DroneMode mode{DroneMode::Stopped};
     double angleSpeed{};
+    double effectiveFromSimTime{};
 };
 
 struct DroneTelemetry {

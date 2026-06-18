@@ -48,6 +48,8 @@ private:
     bool missionComplete{};
     bool targetLocked{};
     int lockedTargetIndex{};
+    int candidateTargetIndex{};
+    int candidateTargetStreak{};
     bool returningFromManuver{};
     int maneuverTargetIndex{};
     std::vector<SimStep> steps{};

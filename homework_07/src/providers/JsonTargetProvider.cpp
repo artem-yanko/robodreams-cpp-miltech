@@ -8,6 +8,8 @@
 #include <string>
 #include <chrono>
 #include <thread>
+
+static constexpr std::size_t kTargetHistoryLimit = 256;
 using json = nlohmann::json;
 
 JsonTargetProvider::JsonTargetProvider(const std::string& targetPath)
@@ -31,7 +33,9 @@ void JsonTargetProvider::run(double targetTimeStep, double arrayTimeStep, double
         accumulatedSimTime += std::chrono::duration<double>(now - lastTick).count() * normalizedTimeScale;
         lastTick = now;
 
-        while (running_ && accumulatedSimTime >= targetTimeStep) {
+        while (running_
+            && accumulatedSimTime >= targetTimeStep
+            && currentTime_ + targetTimeStep <= allowedSimTime_) {
             step(targetTimeStep, arrayTimeStep);
             accumulatedSimTime -= targetTimeStep;
         }
@@ -56,6 +60,15 @@ bool JsonTargetProvider::isThreadReady() const {
     return threadReady_;
 }
 
+double JsonTargetProvider::getCurrentSimTime() const {
+    std::lock_guard<std::mutex> lock(currentTargetsMutex_);
+    return currentTime_;
+}
+
+void JsonTargetProvider::setAllowedSimTime(double simTime) {
+    allowedSimTime_ = simTime;
+}
+
 void JsonTargetProvider::clearTargets() {
     std::lock_guard<std::mutex> lock(currentTargetsMutex_);
     trajectoryData_.positions.clear();
@@ -63,6 +76,7 @@ void JsonTargetProvider::clearTargets() {
     trajectoryData_.timeSteps = 0;
     currentTargets_.clear();
     currentTime_ = 0.0;
+    targetHistory_.clear();
 }
 
 JsonTargetProvider::~JsonTargetProvider() {
@@ -102,6 +116,7 @@ bool JsonTargetProvider::loadTargets() {
         currentTargets_[i].position = trajectoryData_.positions[i].front();
         currentTargets_[i].velocity = {};
     }
+    targetHistory_.push_back({0.0, currentTargets_});
     DEBUG("Target provider loaded " << trajectoryData_.targetCount
         << " targets with " << trajectoryData_.timeSteps << " trajectory steps");
     return true;
@@ -121,6 +136,47 @@ Target JsonTargetProvider::getTarget(int index) const {
     return currentTargets_[index];
 }
 
+Target JsonTargetProvider::getTargetAt(int index, double simTime) const {
+    std::lock_guard<std::mutex> lock(currentTargetsMutex_);
+    if (targetHistory_.empty()) {
+        return {};
+    }
+
+    if (index < 0 || index >= static_cast<int>(targetHistory_.back().targets.size())) {
+        return {};
+    }
+
+    if (simTime <= targetHistory_.front().simTime) {
+        return targetHistory_.front().targets[index];
+    }
+
+    if (simTime >= targetHistory_.back().simTime) {
+        return targetHistory_.back().targets[index];
+    }
+
+    for (std::size_t i = 1; i < targetHistory_.size(); ++i) {
+        const TargetSnapshot& previous = targetHistory_[i - 1];
+        const TargetSnapshot& current = targetHistory_[i];
+        if (simTime > current.simTime) {
+            continue;
+        }
+
+        double fraction = (simTime - previous.simTime) / (current.simTime - previous.simTime);
+        Target result{};
+        result.position = {
+            previous.targets[index].position.x + (current.targets[index].position.x - previous.targets[index].position.x) * fraction,
+            previous.targets[index].position.y + (current.targets[index].position.y - previous.targets[index].position.y) * fraction
+        };
+        result.velocity = {
+            previous.targets[index].velocity.x + (current.targets[index].velocity.x - previous.targets[index].velocity.x) * fraction,
+            previous.targets[index].velocity.y + (current.targets[index].velocity.y - previous.targets[index].velocity.y) * fraction
+        };
+        return result;
+    }
+
+    return targetHistory_.back().targets[index];
+}
+
 void JsonTargetProvider::step(double targetTimeStep, double arrayTimeStep) {
     if (trajectoryData_.timeSteps <= 0 || trajectoryData_.targetCount <= 0) {
         return;
@@ -129,6 +185,10 @@ void JsonTargetProvider::step(double targetTimeStep, double arrayTimeStep) {
     std::lock_guard<std::mutex> lock(currentTargetsMutex_);
     currentTime_ += targetTimeStep;
     updateCurrentTargets(targetTimeStep, arrayTimeStep);
+    targetHistory_.push_back({currentTime_, currentTargets_});
+    while (targetHistory_.size() > kTargetHistoryLimit) {
+        targetHistory_.pop_front();
+    }
 }
 
 Coord JsonTargetProvider::interpolateTargetPosition(int targetIndex, double time, double arrayTimeStep) const {
