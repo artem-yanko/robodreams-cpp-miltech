@@ -4,9 +4,7 @@
 #include <cmath>
 
 static const double VERY_LARGE_TIME = 1e18;
-static const double TARGET_SWITCH_PREVENTION = 1.0;
 static const int TARGET_PREDICTION_ITERATIONS = 3;
-static const double ATTACK_FEASIBILITY_MARGIN = 1.0;
 
 static double calculateTimeToStop(bool isTurning, double currentSpeed, double acceleration, double turnRemainingTime) {
     if (isTurning) {
@@ -60,6 +58,25 @@ static double distanceToFullSpeed(double startSpeed, double attackSpeed, double 
     }
 
     return (attackSpeed * attackSpeed - startSpeed * startSpeed) / (2.0 * acceleration);
+}
+
+static Coord normalizedOrZero(const Coord& value) {
+    double valueLength = length(value);
+    if (valueLength <= 0.0) {
+        return {};
+    }
+
+    return value / valueLength;
+}
+
+static double estimateDynamicDistanceMargin(const DroneConfig& config, double currentSpeed) {
+    double stepTime = config.physicsTimeStep > 0.0 ? config.physicsTimeStep : config.simTimeStep;
+    if (stepTime <= 0.0) {
+        return 0.0;
+    }
+
+    double referenceSpeed = std::max(currentSpeed, config.attackSpeed);
+    return referenceSpeed * stepTime;
 }
 
 static bool estimateTimeToCompleteMove(double& totalTime, double& currentSpeed, double& currentDir, const Coord& startPos, const Coord& goalPos, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
@@ -200,11 +217,55 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
 
     double distanceToDropPoint = distanceBetween(dronePosition, dropPoint);
     double requiredAccelerationDistance = distanceToFullSpeed(droneMotion.currentSpeed, config.attackSpeed, acceleration);
+    double feasibilityMargin = estimateDynamicDistanceMargin(config, droneMotion.currentSpeed);
     bool alreadyAtAttackSpeed = droneMotion.currentSpeed >= config.attackSpeed - 1e-6;
     if (!alreadyAtAttackSpeed
-        && distanceToDropPoint <= requiredAccelerationDistance + ATTACK_FEASIBILITY_MARGIN) {
-        DEBUG("Target " << targetIndex << " rejected: not enough distance to reach attack speed before drop point");
-        return false;
+        && distanceToDropPoint <= requiredAccelerationDistance + feasibilityMargin) {
+        double recoveryTotalTime = totalTime;
+        Coord recoveryPredictedTarget = predictedTarget;
+        Coord recoveryManeuverPoint{};
+        Coord recoveryDropPoint{};
+        bool recoveryValid = false;
+        double fullAccelerationDistance = distanceToFullSpeed(0.0, config.attackSpeed, acceleration);
+        Coord awayDirection = normalizedOrZero(dronePosition - predictedTarget);
+
+        if (length(awayDirection) <= 0.0) {
+            awayDirection = {-std::cos(droneMotion.currentDir), -std::sin(droneMotion.currentDir)};
+        }
+
+        for (int iteration = 0; iteration < TARGET_PREDICTION_ITERATIONS; ++iteration) {
+            double deficit = requiredAccelerationDistance + feasibilityMargin - distanceToDropPoint;
+            if (deficit < 0.0) {
+                deficit = 0.0;
+            }
+
+            double recoveryDistance = std::max(deficit, feasibilityMargin);
+            recoveryManeuverPoint = dronePosition + awayDirection * recoveryDistance;
+
+            Coord unusedPoint{};
+            bool unusedNeedManeuver = false;
+            calculateDropPoint(recoveryDropPoint, unusedPoint, unusedNeedManeuver, recoveryPredictedTarget, recoveryManeuverPoint, ballistics.horizontalDistance, fullAccelerationDistance);
+
+            if (!estimateTimeToTargetPath(recoveryTotalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, isTurning, isMoving, isDecelerating, isAccelerating, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, true, recoveryManeuverPoint, recoveryDropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold)) {
+                break;
+            }
+
+            recoveryPredictedTarget = predictTargetPosition(target, recoveryTotalTime + ballistics.flightTime);
+            distanceToDropPoint = distanceBetween(dronePosition, recoveryDropPoint);
+            recoveryValid = true;
+        }
+
+        if (!recoveryValid) {
+            DEBUG("Target " << targetIndex << " rejected: not enough distance to reach attack speed before drop point");
+            return false;
+        }
+
+        needManeuver = true;
+        maneuverDetected = true;
+        maneuverPoint = recoveryManeuverPoint;
+        dropPoint = recoveryDropPoint;
+        predictedTarget = recoveryPredictedTarget;
+        totalTime = recoveryTotalTime;
     }
 
     if (maneuverDetected) {
@@ -258,7 +319,7 @@ bool TargetAnalyzer::selectBestTarget(BestTargetResult& result, const DroneConfi
     }
 
     if (result.targetIndex != droneMotion.currentTargetIndex && droneMotion.currentTargetIndex != -1) {
-        if (currentTargetTotalTime < VERY_LARGE_TIME && minTotalTime > currentTargetTotalTime - TARGET_SWITCH_PREVENTION) {
+        if (currentTargetTotalTime < VERY_LARGE_TIME && currentTargetTotalTime <= minTotalTime) {
             if (!evaluateTarget(result, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets.getTargetAt(droneMotion.currentTargetIndex, simulationTime), droneMotion.currentTargetIndex, dronePosition, ballistics, acceleration, returningFromManuver)) {
                 DEBUG("Failed to keep focus on the current target");
                 return false;

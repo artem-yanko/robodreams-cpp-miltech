@@ -244,6 +244,25 @@ BallisticsResult MissionProcessor::step() {
                 << ", predictedTarget=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")"
                 << ", needManeuver=" << best.needManeuver);
         }
+        if (!targetSelected) {
+            DEBUG("Locked target " << lockedTargetIndex << " became invalid, retrying target selection");
+            targetLocked = false;
+            lockedTargetIndex = -1;
+            candidateTargetIndex = -1;
+            candidateTargetStreak = 0;
+            returningFromManuver = false;
+            maneuverTargetIndex = -1;
+            droneMotion.currentTargetIndex = -1;
+
+            targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, *targets, simulationTime, ballistics, acceleration, returningFromManuver);
+            if (targetSelected) {
+                DEBUG("Reselected target " << best.targetIndex
+                    << ": totalTime=" << best.totalTime
+                    << ", dropPoint=(" << best.dropPoint.x << "," << best.dropPoint.y << ")"
+                    << ", predictedTarget=(" << best.predictedTarget.x << "," << best.predictedTarget.y << ")"
+                    << ", needManeuver=" << best.needManeuver);
+            }
+        }
     } else {
         targetSelected = analyzer.selectBestTarget(best, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, dronePosition, *targets, simulationTime, ballistics, acceleration, returningFromManuver);
         if (targetSelected) {
@@ -276,9 +295,6 @@ BallisticsResult MissionProcessor::step() {
     }
 
     if (best.targetIndex != maneuverTargetIndex) {
-        returningFromManuver = false;
-    }
-    if (droneState->isDecelerating()) {
         returningFromManuver = false;
     }
     if (droneState->isMoving() && !best.needManeuver) {
