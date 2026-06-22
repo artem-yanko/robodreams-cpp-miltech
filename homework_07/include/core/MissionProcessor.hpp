@@ -1,15 +1,16 @@
 #pragma once
 
-#include "core/DronePhysics.hpp"
 #include "domain/types.hpp"
-#include "interfaces/IBallisticSolver.hpp"
-#include "interfaces/IConfigLoader.hpp"
-#include "interfaces/ITargetProvider.hpp"
-#include "interfaces/IDroneState.hpp"
 #include <atomic>
 #include <memory>
 #include <unordered_map>
 #include <vector>
+
+class DronePhysics;
+class IBallisticSolver;
+class IConfigLoader;
+class ITargetProvider;
+class IDroneState;
 
 class MissionProcessor {
 public:
