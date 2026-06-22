@@ -10,7 +10,7 @@ static const double ANGLE_SPEED_EPSILON = 1e-6;
 
 std::unique_ptr<IDroneState> StateMoving::execute(DroneContext& ctx) {
     double angleLeft = calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.desiredDir);
-    double slowTurnThreshold = ctx.config.turnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
+    double slowTurnThreshold = ctx.activeTurnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
     if (std::fabs(angleLeft) > slowTurnThreshold) {
         ctx.droneMotion.turnTargetDir = ctx.droneMotion.desiredDir;
         ctx.command.mode = DroneMode::Decelerating;
@@ -19,7 +19,7 @@ std::unique_ptr<IDroneState> StateMoving::execute(DroneContext& ctx) {
     }
 
     ctx.command.mode = DroneMode::Moving;
-    if (std::fabs(angleLeft) > ctx.config.turnThreshold) {
+    if (std::fabs(angleLeft) > ctx.activeTurnThreshold) {
         double turnStep = ctx.config.physicsTimeStep > 0.0 ? ctx.config.physicsTimeStep : ctx.config.simTimeStep;
         double requiredAngleSpeed = turnStep > 0.0 ? angleLeft / turnStep : 0.0;
         double maxAngleSpeed = std::max(0.0, ctx.config.angularSpeed - ANGLE_SPEED_EPSILON);

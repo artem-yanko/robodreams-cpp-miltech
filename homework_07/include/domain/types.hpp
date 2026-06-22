@@ -61,6 +61,8 @@ struct BestTargetResult {
     Coord maneuverPoint{};
     Coord targetPos{};
     Coord predictedTarget{};
+    double releaseHeading{};
+    double releaseTurnThreshold{};
 };
 
 struct DroneMotionState {

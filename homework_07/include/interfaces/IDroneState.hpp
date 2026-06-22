@@ -8,6 +8,7 @@ struct DroneContext {
     DroneMotionState& droneMotion;
     const Coord& goal;
     const DroneConfig& config;
+    double activeTurnThreshold;
     DroneCommand& command;
 };
 

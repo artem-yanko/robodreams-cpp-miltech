@@ -129,7 +129,7 @@ static bool estimateTimeToCompleteMove(double& totalTime, double& currentSpeed, 
     return true;
 }
 
-static bool estimateTimeToTargetPath(double& totalTime, const Coord& currentPos, double currentSpeed, double currentDir, bool isTurning, bool isMoving, bool isDecelerating, bool isAccelerating, int currentTargetIndex, int targetIndex, double turnTargetDir, double turnRemainingTime, bool needManeuver, const Coord& maneuverPoint, const Coord& dropPoint, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
+static bool estimateTimeToTargetPath(double& totalTime, const Coord& currentPos, double currentSpeed, double currentDir, bool isTurning, bool isMoving, bool isDecelerating, bool isAccelerating, int currentTargetIndex, int targetIndex, double turnTargetDir, double turnRemainingTime, bool needManeuver, const Coord& maneuverPoint, const Coord& dropPoint, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold, double releaseTurnThreshold) {
     totalTime = 0.0;
     double localSpeed = currentSpeed;
     double localDir = currentDir;
@@ -165,7 +165,20 @@ static bool estimateTimeToTargetPath(double& totalTime, const Coord& currentPos,
         localPos = maneuverPoint;
     }
 
-    return estimateTimeToCompleteMove(totalTime, localSpeed, localDir, localPos, dropPoint, attackSpeed, acceleration, angularSpeed, turnThreshold);
+    return estimateTimeToCompleteMove(totalTime, localSpeed, localDir, localPos, dropPoint, attackSpeed, acceleration, angularSpeed, releaseTurnThreshold);
+}
+
+static double calculateReleaseTurnThreshold(const DroneConfig& config, const BallisticsResult& ballistics) {
+    if (ballistics.horizontalDistance <= 0.0 || config.hitRadius <= 0.0) {
+        return config.turnThreshold;
+    }
+
+    double ratio = config.hitRadius / ballistics.horizontalDistance;
+    if (ratio >= 1.0) {
+        return config.turnThreshold;
+    }
+
+    return std::min(config.turnThreshold, std::asin(ratio));
 }
 
 Coord TargetAnalyzer::predictTargetPosition(const Target& target, double flightTime) {
@@ -204,18 +217,24 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
     bool needManeuver = false;
     double totalTime = 0.0;
     Coord predictedTarget = target.position;
+    double releaseHeading = droneMotion.currentDir;
+    double releaseTurnThreshold = calculateReleaseTurnThreshold(config, ballistics);
     double remainingAccelerationDistance =
         distanceToFullSpeed(droneMotion.currentSpeed, config.attackSpeed, acceleration);
 
     for (int iteration = 0; iteration < TARGET_PREDICTION_ITERATIONS; ++iteration) {
         predictedTarget = predictTargetPosition(target, totalTime + ballistics.flightTime);
         calculateDropPoint(dropPoint, maneuverPoint, needManeuver, predictedTarget, dronePosition, ballistics.horizontalDistance, remainingAccelerationDistance);
+        Coord releaseVector = predictedTarget - dropPoint;
+        if (length(releaseVector) > 0.0) {
+            releaseHeading = atan2(releaseVector.y, releaseVector.x);
+        }
 
         if (returningFromManuver && targetIndex == droneMotion.currentTargetIndex) {
             needManeuver = false;
         }
 
-        if (!estimateTimeToTargetPath(totalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, isTurning, isMoving, isDecelerating, isAccelerating, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, needManeuver, maneuverPoint, dropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold)) {
+        if (!estimateTimeToTargetPath(totalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, isTurning, isMoving, isDecelerating, isAccelerating, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, needManeuver, maneuverPoint, dropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold, releaseTurnThreshold)) {
             ERROR_LOG("Invalid time estimate to drop point");
             return false;
         }
@@ -252,11 +271,15 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
             bool unusedNeedManeuver = false;
             calculateDropPoint(recoveryDropPoint, unusedPoint, unusedNeedManeuver, recoveryPredictedTarget, recoveryManeuverPoint, ballistics.horizontalDistance, fullAccelerationDistance);
 
-            if (!estimateTimeToTargetPath(recoveryTotalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, isTurning, isMoving, isDecelerating, isAccelerating, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, true, recoveryManeuverPoint, recoveryDropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold)) {
+            if (!estimateTimeToTargetPath(recoveryTotalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, isTurning, isMoving, isDecelerating, isAccelerating, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, true, recoveryManeuverPoint, recoveryDropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold, releaseTurnThreshold)) {
                 break;
             }
 
             recoveryPredictedTarget = predictTargetPosition(target, recoveryTotalTime + ballistics.flightTime);
+            Coord releaseVector = recoveryPredictedTarget - recoveryDropPoint;
+            if (length(releaseVector) > 0.0) {
+                releaseHeading = atan2(releaseVector.y, releaseVector.x);
+            }
             distanceToDropPoint = distanceBetween(dronePosition, recoveryDropPoint);
             recoveryValid = true;
         }
@@ -280,6 +303,8 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
     best.maneuverPoint = maneuverPoint;
     best.targetPos = target.position;
     best.predictedTarget = predictedTarget;
+    best.releaseHeading = releaseHeading;
+    best.releaseTurnThreshold = releaseTurnThreshold;
 
     return true;
 }

@@ -350,12 +350,17 @@ BallisticsResult MissionProcessor::step() {
         droneMotion.desiredDir = atan2(deltaToGoal.y, deltaToGoal.x);
     }
 
+    double activeTurnThreshold = headingToManeuver
+        ? config.turnThreshold
+        : best.releaseTurnThreshold;
+
     DroneCommand command{};
     DroneContext ctx{
         .telemetry = telemetry,
         .droneMotion = droneMotion,
         .goal = goal,
         .config = config,
+        .activeTurnThreshold = activeTurnThreshold,
         .command = command
     };
 
@@ -389,7 +394,9 @@ BallisticsResult MissionProcessor::step() {
     currentStep.aimPoint = dronePosition + currentDir * ballistics.horizontalDistance;
     steps.push_back(currentStep);
 
+    double headingError = std::fabs(calculateAngleDifference(droneMotion.currentDir, best.releaseHeading));
     bool dropNow = !headingToManeuver && isInsideRadius(dronePosition, best.dropPoint, config.hitRadius)
+                   && headingError <= best.releaseTurnThreshold
                    && isCurrentlyMoving;
     if (dropNow) {
         LOG("Drop condition met"

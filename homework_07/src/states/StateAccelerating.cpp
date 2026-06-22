@@ -15,7 +15,7 @@ static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
 
 std::unique_ptr<IDroneState> StateAccelerating::execute(DroneContext& ctx) {
     double angleLeft = calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.desiredDir);
-    double slowTurnThreshold = ctx.config.turnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
+    double slowTurnThreshold = ctx.activeTurnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
     if (std::fabs(angleLeft) > slowTurnThreshold) {
         ctx.droneMotion.turnTargetDir = ctx.droneMotion.desiredDir;
         ctx.command.mode = DroneMode::Decelerating;

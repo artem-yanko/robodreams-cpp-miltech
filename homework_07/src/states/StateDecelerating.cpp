@@ -13,7 +13,7 @@ std::unique_ptr<IDroneState> StateDecelerating::execute(DroneContext& ctx) {
     if (currentSpeed <= 0.0) {
         double angleLeft = calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.desiredDir);
         ctx.droneMotion.turnTargetDir = ctx.droneMotion.desiredDir;
-        if (std::fabs(angleLeft) > ctx.config.turnThreshold) {
+        if (std::fabs(angleLeft) > ctx.activeTurnThreshold) {
             ctx.command.mode = DroneMode::Turning;
             ctx.command.angleSpeed = angleLeft > 0.0 ? ctx.config.angularSpeed : -ctx.config.angularSpeed;
             return std::make_unique<StateTurning>();

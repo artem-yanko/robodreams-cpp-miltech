@@ -6,7 +6,7 @@
 
 std::unique_ptr<IDroneState> StateStopped::execute(DroneContext& ctx) {
     double deltaAngle = std::fabs(calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.desiredDir));
-    if (deltaAngle > ctx.config.turnThreshold) {
+    if (deltaAngle > ctx.activeTurnThreshold) {
         ctx.droneMotion.turnTargetDir = ctx.droneMotion.desiredDir;
         ctx.command.mode = DroneMode::Turning;
         ctx.command.angleSpeed =
