@@ -1,6 +1,5 @@
 #include "providers/JsonConfigLoader.hpp"
 #include "utils/logger.hpp"
-#include <cstring>
 #include <fstream>
 #include <string>
 #include "utils/json.hpp"
@@ -28,9 +27,7 @@ bool JsonConfigLoader::loadConfig(DroneConfig& config) {
     config.accelPath = configJson["drone"]["accelerationPath"];
     config.angularSpeed = configJson["drone"]["angularSpeed"];
     config.turnThreshold = configJson["drone"]["turnThreshold"];
-
-    std::strncpy(config.ammoName, configJson["ammo"].get<std::string>().c_str(), sizeof(config.ammoName) - 1);
-    config.ammoName[sizeof(config.ammoName) - 1] = '\0';
+    config.ammoName = configJson["ammo"].get<std::string>();
 
     config.arrayTimeStep = configJson["targetArrayTimeStep"];
     config.simTimeStep = configJson["simulation"]["timeStep"];
@@ -39,7 +36,7 @@ bool JsonConfigLoader::loadConfig(DroneConfig& config) {
     return true;
 }
 
-bool JsonConfigLoader::loadAmmo(AmmoParams*& ammoList, int& ammoCount) {
+bool JsonConfigLoader::loadAmmo(std::vector<AmmoParams>& ammoList) {
   std::ifstream ammoFile(ammoPath_);
   if (!ammoFile) {
     ERROR_LOG("Failed to open file \"" << ammoPath_ << "\"");
@@ -49,20 +46,22 @@ bool JsonConfigLoader::loadAmmo(AmmoParams*& ammoList, int& ammoCount) {
   json ammoJson;
   ammoFile >> ammoJson;
 
-  ammoCount = static_cast<int>(ammoJson.size());
+  const int ammoCount = static_cast<int>(ammoJson.size());
   if (ammoCount <= 0) {
     ERROR_LOG("File \"" << ammoPath_ << "\" does not contain ammo entries");
     return false;
   }
 
-  ammoList = new AmmoParams[ammoCount]{};
-  for (int i = 0; i < ammoCount; ++i) {
-    std::strncpy(ammoList[i].name, ammoJson[i]["name"].get<std::string>().c_str(), sizeof(ammoList[i].name) - 1);
-    ammoList[i].name[sizeof(ammoList[i].name) - 1] = '\0';
+  ammoList.clear();
+  ammoList.reserve(ammoCount);
 
-    ammoList[i].mass = ammoJson[i]["mass"];
-    ammoList[i].drag = ammoJson[i]["drag"];
-    ammoList[i].lift = ammoJson[i]["lift"];
+  for (int i = 0; i < ammoCount; ++i) {
+    ammoList.emplace_back();
+    AmmoParams& ammo = ammoList.back();
+    ammo.name = ammoJson[i]["name"].get<std::string>();
+    ammo.mass = ammoJson[i]["mass"];
+    ammo.drag = ammoJson[i]["drag"];
+    ammo.lift = ammoJson[i]["lift"];
   }
 
   return true;

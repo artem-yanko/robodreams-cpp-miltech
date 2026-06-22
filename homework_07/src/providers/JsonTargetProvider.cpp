@@ -11,13 +11,7 @@ JsonTargetProvider::JsonTargetProvider(const std::string& targetPath)
 }
 
 void JsonTargetProvider::clearTargets() {
-  if (targets.positions) {
-    for (int i = 0; i < targets.targetCount; ++i) {
-      delete[] targets.positions[i];
-    }
-    delete[] targets.positions;
-    targets.positions = nullptr;
-  }
+  targets.positions.clear();
   targets.targetCount = 0;
   targets.timeSteps = 0;
 }
@@ -45,9 +39,9 @@ bool JsonTargetProvider::loadTargets() {
     return false;
   }
 
-  targets.positions = new Coord*[targets.targetCount]{};
+  targets.positions.resize(targets.targetCount);
   for (int i = 0; i < targets.targetCount; ++i) {
-    targets.positions[i] = new Coord[targets.timeSteps]{};
+    targets.positions[i].resize(targets.timeSteps);
     for (int j = 0; j < targets.timeSteps; ++j) {
       targets.positions[i][j].x = targetsJson["targets"][i]["positions"][j]["x"];
       targets.positions[i][j].y = targetsJson["targets"][i]["positions"][j]["y"];

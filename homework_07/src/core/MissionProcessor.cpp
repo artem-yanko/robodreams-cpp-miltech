@@ -3,7 +3,6 @@
 #include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
 #include "utils/json.hpp"
-#include <cstring>
 #include <cmath>
 #include <fstream>
 
@@ -78,15 +77,6 @@ static bool moveDroneToPoint(Coord& position, const Coord& dest, double maxDista
 
 static bool isInsideRadius(const Coord& point, const Coord& center, double radius) {
   return distanceBetween(point, center) <= radius;
-}
-
-static const AmmoParams* ammoSelect(const AmmoParams* ammoList, int ammoCount, const char* ammoName) {
-    for (int i = 0; i < ammoCount; ++i) {
-        if (strcmp(ammoName, ammoList[i].name) == 0) {
-            return &ammoList[i];
-        }
-    }
-    return nullptr;
 }
 
 static bool updateDroneMotion(Coord& dronePosition, DroneMotionState& droneMotion, const Coord& goal, double simTimeStep, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
@@ -221,16 +211,9 @@ static bool updateDroneMotion(Coord& dronePosition, DroneMotionState& droneMotio
   return reachedGoal;
 }
 
-MissionProcessor::~MissionProcessor() {
-    if (ammoList) {
-        delete[] ammoList;
-        ammoList = nullptr;
-    }
-}
+MissionProcessor::~MissionProcessor() = default;
 
 MissionProcessor::MissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader) : targets(targets), solver(solver), configLoader(configLoader) {
-        ammoList = nullptr;
-        ammoCount = 0;
         ballistics = {};
         simulationTime = 0.0;
         acceleration = 0.0;
@@ -252,24 +235,25 @@ bool MissionProcessor::init() {
         << ", ammoName=" << config.ammoName
         << ", startPos=(" << config.startPos.x << "," << config.startPos.y << ")");
 
-    if (ammoList != nullptr) {
-        delete[] ammoList;
-        ammoList = nullptr;
-        ammoCount = 0;
-    }
+    ammoList.clear();
+    ammoIndex.clear();
 
-    if (!configLoader->loadAmmo(ammoList, ammoCount)) {
+    if (!configLoader->loadAmmo(ammoList)) {
         ERROR_LOG("Failed to load ammo parameters");
         return false;
     }
-    LOG("Ammo parameters loaded: " << ammoCount);
+    LOG("Ammo parameters loaded: " << ammoList.size());
 
-    const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
-    if (selectedAmmo == nullptr) {
+    for (std::size_t i = 0; i < ammoList.size(); ++i) {
+        ammoIndex[ammoList[i].name] = i;
+    }
+
+    auto selectedAmmo = ammoIndex.find(config.ammoName);
+    if (selectedAmmo == ammoIndex.end()) {
         ERROR_LOG("Failed to select ammo parameters");
         return false;
     }
-    ballistics = solver->solve(config, *selectedAmmo);
+    ballistics = solver->solve(config, ammoList[selectedAmmo->second]);
 
     if (!targets->loadTargets()) {
         ERROR_LOG("Failed to load targets");
@@ -448,17 +432,17 @@ void MissionProcessor::reset() {
 
 void MissionProcessor::changeSolver(IBallisticSolver* newSolver) {
     solver = newSolver;
-    if (solver == nullptr || ammoList == nullptr) {
+    if (solver == nullptr || ammoList.empty()) {
         ballistics = {};
         return;
     }
 
-    const AmmoParams* selectedAmmo = ammoSelect(ammoList, ammoCount, config.ammoName);
-    if (selectedAmmo == nullptr) {
+    auto selectedAmmo = ammoIndex.find(config.ammoName);
+    if (selectedAmmo == ammoIndex.end()) {
         ERROR_LOG("Failed to select ammo parameters");
         ballistics = {};
         return;
     }
 
-    ballistics = solver->solve(config, *selectedAmmo);
+    ballistics = solver->solve(config, ammoList[selectedAmmo->second]);
 }
