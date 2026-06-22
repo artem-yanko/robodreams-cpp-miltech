@@ -1,4 +1,5 @@
 #include "core/TargetAnalyzer.hpp"
+#include "interfaces/ITargetProvider.hpp"
 #include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
 #include <cmath>

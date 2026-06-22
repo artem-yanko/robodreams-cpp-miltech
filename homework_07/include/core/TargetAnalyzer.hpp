@@ -1,7 +1,8 @@
 #pragma once
 
 #include "domain/types.hpp"
-#include "interfaces/ITargetProvider.hpp"
+
+class ITargetProvider;
 
 class TargetAnalyzer {
 public:

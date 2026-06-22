@@ -1,4 +1,5 @@
 #include "core/ComponentFactory.hpp"
+#include "core/MissionProcessor.hpp"
 
 #include "providers/AnalyticalSolver.hpp"
 #include "providers/JsonConfigLoader.hpp"
