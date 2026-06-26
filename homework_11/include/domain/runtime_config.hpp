@@ -11,6 +11,7 @@ struct RuntimeConfig {
     RunMode mode{SIM_MODE};
     std::string uartDevice{"/tmp/ttyA"};
     std::string gpioChip{"gpiochip1"};
+    std::string simBank{};
     unsigned startLine{24};
     unsigned dropLine{23};
 };

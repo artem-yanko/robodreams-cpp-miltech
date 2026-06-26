@@ -45,12 +45,69 @@ bool DroneLinkAdapter::open(const std::string& uartDevice) {
     return true;
 }
 
-bool DroneLinkAdapter::pollIncoming() {
-    return uartFd >= 0;
+int DroneLinkAdapter::pollIncoming(MissionState& state) {
+    if (uartFd < 0) {
+        return -1;
+    }
+
+    uint8_t input[256]{};
+    ssize_t n = read(uartFd, input, sizeof(input));
+    if (n < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return 0;
+        }
+        ERROR_LOG("UART read failed: " << std::strerror(errno));
+        return -1;
+    }
+
+    if (n == 0) {
+        return 0;
+    }
+
+    uint8_t type = 0;
+    uint8_t len = 0;
+    uint8_t payload[260]{};
+    int packets = 0;
+
+    for (ssize_t i = 0; i < n; ++i) {
+        if (!parser.feed(input[i], type, payload, len)) {
+            continue;
+        }
+
+        ++packets;
+
+        if (type == dlink::PKT_TELEMETRY && len == sizeof(dlink::Telemetry)) {
+            std::memcpy(&state.telemetry, payload, sizeof(dlink::Telemetry));
+            state.telemetryReceived = true;
+        } else if (type == dlink::PKT_AMMO && len == sizeof(dlink::AmmoCfg)) {
+            std::memcpy(&state.ammo, payload, sizeof(dlink::AmmoCfg));
+            state.ammoReceived = true;
+        } else if (type == dlink::PKT_TARGET && len == sizeof(dlink::TargetPos)) {
+            dlink::TargetPos target{};
+            std::memcpy(&target, payload, sizeof(dlink::TargetPos));
+            state.updateTarget(target);
+        }
+    }
+
+    return packets;
 }
 
 bool DroneLinkAdapter::sendControl(float accel, float turnRate) {
-    (void)accel;
-    (void)turnRate;
-    return uartFd >= 0;
+    if (uartFd < 0) {
+        return false;
+    }
+
+    dlink::Control control{accel, turnRate};
+    uint8_t output[64]{};
+    size_t size = dlink::encode(dlink::PKT_CONTROL, &control, sizeof(control), output);
+    ssize_t written = write(uartFd, output, size);
+    if (written < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return true;
+        }
+        ERROR_LOG("UART write failed: " << std::strerror(errno));
+        return false;
+    }
+
+    return written == static_cast<ssize_t>(size);
 }
