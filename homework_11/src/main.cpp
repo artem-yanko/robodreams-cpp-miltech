@@ -37,8 +37,10 @@ static void logTarget(const MissionState& state) {
 static void logDecision(const MissionDecision& decision) {
     LOG("DECISION target=" << decision.targetId
         << ", angleError=" << decision.angleError
+        << ", distance=" << decision.distanceToTarget
         << ", accel=" << decision.accel
-        << ", turnRate=" << decision.turnRate);
+        << ", turnRate=" << decision.turnRate
+        << ", shouldDrop=" << decision.shouldDrop);
 }
 
 static RuntimeConfig parseArgs(int argc, char* argv[]) {
@@ -165,6 +167,16 @@ int main(int argc, char* argv[]) {
             if (!link.sendControl(decision.accel, decision.turnRate)) {
                 ERROR_LOG("Failed to send CONTROL");
             }
+
+            if (decision.shouldDrop && !state.dropDone) {
+                if (!gpio.pulseDrop()) {
+                    ERROR_LOG("Failed to pulse DROP line");
+                } else {
+                    state.dropDone = true;
+                    LOG("DROP triggered");
+                }
+            }
+
             lastControlSend = now;
         }
 

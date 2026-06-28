@@ -5,4 +5,6 @@ struct MissionDecision {
     float turnRate{};
     int targetId{-1};
     double angleError{};
+    double distanceToTarget{};
+    bool shouldDrop{};
 };
