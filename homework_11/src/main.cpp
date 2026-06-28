@@ -1,3 +1,4 @@
+#include "core/MissionProcessor.hpp"
 #include "domain/mission_state.hpp"
 #include "domain/runtime_config.hpp"
 #include "io/drone_link_adapter.hpp"
@@ -107,6 +108,8 @@ int main(int argc, char* argv[]) {
     }
     state.startRaised = true;
 
+    MissionProcessor missionProcessor(config);
+
     LOG("Homework 11 skeleton initialized");
     LOG("Mode=" << (config.mode == SIM_MODE ? "sim" : "hw")
         << ", uart=" << config.uartDevice
@@ -150,7 +153,8 @@ int main(int argc, char* argv[]) {
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         if (now - lastControlSend >= std::chrono::milliseconds(100)) {
-            if (!link.sendControl(0.0f, 0.0f)) {
+            MissionDecision decision = missionProcessor.update(state);
+            if (!link.sendControl(decision.accel, decision.turnRate)) {
                 ERROR_LOG("Failed to send CONTROL");
             }
             lastControlSend = now;
