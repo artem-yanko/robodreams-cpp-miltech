@@ -15,6 +15,7 @@ struct RuntimeConfig {
     std::string simBank{};
     std::string configPath{};
     std::string ammoPath{};
+    std::string ballisticTablePath{};
     unsigned startLine{24};
     unsigned dropLine{23};
     DroneConfig drone{};

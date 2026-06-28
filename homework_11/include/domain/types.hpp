@@ -30,3 +30,8 @@ struct DroneConfig {
     double angularSpeed{};
     double turnThreshold{};
 };
+
+struct BallisticsResult {
+    double flightTime{};
+    double horizontalDistance{};
+};

@@ -1,4 +1,5 @@
 #include "core/MissionProcessor.hpp"
+#include "interfaces/IBallisticSolver.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -15,8 +16,8 @@ static double normalizeAngle(double angle) {
     return angle;
 }
 
-MissionProcessor::MissionProcessor(const RuntimeConfig& config)
-    : config(config) {
+MissionProcessor::MissionProcessor(const RuntimeConfig& config, std::unique_ptr<IBallisticSolver> solver)
+    : config(config), solver(std::move(solver)) {
 }
 
 MissionDecision MissionProcessor::update(const MissionState& state) const {
@@ -36,6 +37,21 @@ MissionDecision MissionProcessor::update(const MissionState& state) const {
     decision.angleError = angleError;
     decision.distanceToTarget = distanceToTarget;
 
+    AmmoParams ammo{};
+    if (state.ammoReceived) {
+        ammo.name = state.ammo.name;
+        ammo.mass = state.ammo.mass;
+        ammo.drag = state.ammo.drag;
+        ammo.lift = state.ammo.lift;
+    } else {
+        ammo.name = config.drone.ammoName;
+    }
+
+    BallisticsResult ballistics{};
+    if (solver != nullptr && state.ammoReceived) {
+        ballistics = solver->solve(config.drone, ammo);
+    }
+
     const double normalizedTurn = angleError / config.drone.angularSpeed;
     decision.turnRate = static_cast<float>(std::clamp(normalizedTurn, -1.0, 1.0));
 
@@ -49,7 +65,8 @@ MissionDecision MissionProcessor::update(const MissionState& state) const {
     }
 
     if (!state.dropDone
-        && distanceToTarget <= 35.0
+        && ballistics.horizontalDistance > 0.0
+        && distanceToTarget <= ballistics.horizontalDistance
         && absAngleError <= config.drone.turnThreshold) {
         decision.shouldDrop = true;
     }

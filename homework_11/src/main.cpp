@@ -1,13 +1,16 @@
 #include "core/MissionProcessor.hpp"
 #include "domain/mission_state.hpp"
 #include "domain/runtime_config.hpp"
+#include "interfaces/IBallisticSolver.hpp"
 #include "io/drone_link_adapter.hpp"
 #include "io/gpio_controller.hpp"
 #include "providers/JsonConfigLoader.hpp"
+#include "providers/TableSolver.hpp"
 #include "utils/logger.hpp"
 
 #include <chrono>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <thread>
 
@@ -47,6 +50,7 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
     RuntimeConfig config{};
     config.configPath = DEFAULT_CONFIG_DIR "/src/config.json";
     config.ammoPath = DEFAULT_CONFIG_DIR "/src/ammo.json";
+    config.ballisticTablePath = DEFAULT_CONFIG_DIR "/data/ballistics/ballistic_table.txt";
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--sim") == 0) {
@@ -67,6 +71,8 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
             config.configPath = argv[++i];
         } else if (std::strcmp(argv[i], "--ammo") == 0 && i + 1 < argc) {
             config.ammoPath = argv[++i];
+        } else if (std::strcmp(argv[i], "--ballistic-table") == 0 && i + 1 < argc) {
+            config.ballisticTablePath = argv[++i];
         } else if (std::strcmp(argv[i], "--uart") == 0 && i + 1 < argc) {
             config.uartDevice = argv[++i];
         } else if (std::strcmp(argv[i], "--gpiochip") == 0 && i + 1 < argc) {
@@ -117,7 +123,8 @@ int main(int argc, char* argv[]) {
     }
     state.startRaised = true;
 
-    MissionProcessor missionProcessor(config);
+    std::unique_ptr<IBallisticSolver> solver = std::make_unique<TableSolver>(config.ballisticTablePath);
+    MissionProcessor missionProcessor(config, std::move(solver));
 
     LOG("Homework 11 skeleton initialized");
     LOG("Mode=" << (config.mode == SIM_MODE ? "sim" : "hw")
@@ -126,6 +133,7 @@ int main(int argc, char* argv[]) {
         << ", simBank=" << (config.simBank.empty() ? "-" : config.simBank)
         << ", config=" << config.configPath
         << ", ammo=" << config.ammoPath
+        << ", ballisticTable=" << config.ballisticTablePath
         << ", startLine=" << config.startLine
         << ", dropLine=" << config.dropLine);
     LOG("Config attackSpeed=" << config.drone.attackSpeed
