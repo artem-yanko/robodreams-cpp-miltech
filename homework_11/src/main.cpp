@@ -34,6 +34,13 @@ static void logTarget(const MissionState& state) {
           << ", knownTargets=" << state.targets.size());
 }
 
+static void logDecision(const MissionDecision& decision) {
+    LOG("DECISION target=" << decision.targetId
+        << ", angleError=" << decision.angleError
+        << ", accel=" << decision.accel
+        << ", turnRate=" << decision.turnRate);
+}
+
 static RuntimeConfig parseArgs(int argc, char* argv[]) {
     RuntimeConfig config{};
     config.configPath = DEFAULT_CONFIG_DIR "/src/config.json";
@@ -154,6 +161,7 @@ int main(int argc, char* argv[]) {
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         if (now - lastControlSend >= std::chrono::milliseconds(100)) {
             MissionDecision decision = missionProcessor.update(state);
+            logDecision(decision);
             if (!link.sendControl(decision.accel, decision.turnRate)) {
                 ERROR_LOG("Failed to send CONTROL");
             }

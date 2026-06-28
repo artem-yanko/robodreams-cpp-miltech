@@ -27,10 +27,12 @@ MissionDecision MissionProcessor::update(const MissionState& state) const {
     }
 
     const dlink::TargetPos& target = state.targets.front();
+    decision.targetId = static_cast<int>(target.id);
     const double dx = static_cast<double>(target.x) - static_cast<double>(state.telemetry.x);
     const double dy = static_cast<double>(target.y) - static_cast<double>(state.telemetry.y);
     const double targetDir = std::atan2(dy, dx);
     const double angleError = normalizeAngle(targetDir - static_cast<double>(state.telemetry.dir));
+    decision.angleError = angleError;
 
     const double normalizedTurn = angleError / config.drone.angularSpeed;
     decision.turnRate = static_cast<float>(std::clamp(normalizedTurn, -1.0, 1.0));
