@@ -1,5 +1,6 @@
 #pragma once
 
+#include "domain/types.hpp"
 #include <string>
 
 enum RunMode {
@@ -12,6 +13,9 @@ struct RuntimeConfig {
     std::string uartDevice{"/tmp/ttyA"};
     std::string gpioChip{"gpiochip1"};
     std::string simBank{};
+    std::string configPath{};
+    std::string ammoPath{};
     unsigned startLine{24};
     unsigned dropLine{23};
+    DroneConfig drone{};
 };

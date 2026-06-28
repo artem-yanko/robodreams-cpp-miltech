@@ -17,7 +17,12 @@ target_include_directories(hw11_gpio_controller PUBLIC ${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(hw11_gpio_controller PUBLIC ${HW11_GPIOD_LIB})
 target_compile_options(hw11_gpio_controller PRIVATE -Wall -Wextra -pedantic)
 
+add_library(hw11_json_config_loader src/providers/JsonConfigLoader.cpp)
+target_include_directories(hw11_json_config_loader PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(hw11_json_config_loader PRIVATE -Wall -Wextra -pedantic)
+
 add_executable(homework_11_app src/main.cpp)
 target_include_directories(homework_11_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(homework_11_app PRIVATE hw11_drone_link_adapter hw11_gpio_controller)
+target_link_libraries(homework_11_app PRIVATE hw11_drone_link_adapter hw11_gpio_controller hw11_json_config_loader)
+target_compile_definitions(homework_11_app PRIVATE DEFAULT_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_options(homework_11_app PRIVATE -Wall -Wextra -pedantic)

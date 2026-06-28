@@ -2,6 +2,7 @@
 #include "domain/runtime_config.hpp"
 #include "io/drone_link_adapter.hpp"
 #include "io/gpio_controller.hpp"
+#include "providers/JsonConfigLoader.hpp"
 #include "utils/logger.hpp"
 
 #include <chrono>
@@ -34,6 +35,8 @@ static void logTarget(const MissionState& state) {
 
 static RuntimeConfig parseArgs(int argc, char* argv[]) {
     RuntimeConfig config{};
+    config.configPath = DEFAULT_CONFIG_DIR "/src/config.json";
+    config.ammoPath = DEFAULT_CONFIG_DIR "/src/ammo.json";
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--sim") == 0) {
@@ -50,6 +53,10 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
             config.simBank.clear();
             config.startLine = 27;
             config.dropLine = 22;
+        } else if (std::strcmp(argv[i], "--config") == 0 && i + 1 < argc) {
+            config.configPath = argv[++i];
+        } else if (std::strcmp(argv[i], "--ammo") == 0 && i + 1 < argc) {
+            config.ammoPath = argv[++i];
         } else if (std::strcmp(argv[i], "--uart") == 0 && i + 1 < argc) {
             config.uartDevice = argv[++i];
         } else if (std::strcmp(argv[i], "--gpiochip") == 0 && i + 1 < argc) {
@@ -69,6 +76,18 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     RuntimeConfig config = parseArgs(argc, argv);
     MissionState state{};
+    std::vector<AmmoParams> ammoList;
+
+    JsonConfigLoader configLoader(config.configPath, config.ammoPath);
+    if (!configLoader.loadConfig(config.drone)) {
+        ERROR_LOG("Failed to load drone config");
+        return 1;
+    }
+
+    if (!configLoader.loadAmmo(ammoList)) {
+        ERROR_LOG("Failed to load ammo config");
+        return 1;
+    }
 
     DroneLinkAdapter link;
     if (!link.open(config.uartDevice)) {
@@ -93,8 +112,15 @@ int main(int argc, char* argv[]) {
         << ", uart=" << config.uartDevice
         << ", gpio=" << config.gpioChip
         << ", simBank=" << (config.simBank.empty() ? "-" : config.simBank)
+        << ", config=" << config.configPath
+        << ", ammo=" << config.ammoPath
         << ", startLine=" << config.startLine
         << ", dropLine=" << config.dropLine);
+    LOG("Config attackSpeed=" << config.drone.attackSpeed
+        << ", accelPath=" << config.drone.accelPath
+        << ", angularSpeed=" << config.drone.angularSpeed
+        << ", turnThreshold=" << config.drone.turnThreshold
+        << ", simTimeStep=" << config.drone.simTimeStep);
 
     bool ammoLogged = false;
     uint32_t lastTelemetryLogMs = 0;
