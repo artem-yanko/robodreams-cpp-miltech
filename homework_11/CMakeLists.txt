@@ -44,6 +44,13 @@ target_include_directories(hw11_mission_processor PUBLIC ${CMAKE_CURRENT_SOURCE_
 target_link_libraries(hw11_mission_processor PUBLIC hw11_math_utils hw11_states)
 target_compile_options(hw11_mission_processor PRIVATE -Wall -Wextra -pedantic)
 
+add_library(hw11_target_analyzer src/core/TargetAnalyzer.cpp)
+target_include_directories(hw11_target_analyzer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(hw11_target_analyzer PUBLIC hw11_math_utils hw11_mission_state)
+target_compile_options(hw11_target_analyzer PRIVATE -Wall -Wextra -pedantic)
+
+target_link_libraries(hw11_mission_processor PUBLIC hw11_target_analyzer)
+
 add_executable(homework_11_app src/main.cpp)
 target_include_directories(homework_11_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(homework_11_app PRIVATE hw11_drone_link_adapter hw11_gpio_controller hw11_json_config_loader hw11_table_solver hw11_mission_processor)

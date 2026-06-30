@@ -21,4 +21,11 @@ private:
     std::unique_ptr<IDroneState> droneState;
     DroneMotionState droneMotion;
     bool stateBootstrapped{};
+    double acceleration{};
+    bool targetLocked{};
+    int lockedTargetIndex{-1};
+    int candidateTargetIndex{-1};
+    int candidateTargetStreak{};
+    bool returningFromManuver{};
+    int maneuverTargetIndex{-1};
 };

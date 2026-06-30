@@ -42,9 +42,28 @@ struct BallisticsResult {
     double horizontalDistance{};
 };
 
+struct BestTargetResult {
+    int targetIndex{-1};
+    double totalTime{};
+    Coord dropPoint{};
+    bool needManeuver{};
+    Coord maneuverPoint{};
+    Coord targetPos{};
+    Coord predictedTarget{};
+    double releaseHeading{};
+    double releaseTurnThreshold{};
+};
+
+struct Target {
+    Coord position{};
+    Coord velocity{};
+};
+
 struct DroneMotionState {
     double currentSpeed{};
     double currentDir{};
+    double turnRemainingTime{};
     double turnTargetDir{};
     double desiredDir{};
+    int currentTargetIndex{-1};
 };

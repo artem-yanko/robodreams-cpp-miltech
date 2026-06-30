@@ -85,7 +85,7 @@ int DroneLinkAdapter::pollIncoming(MissionState& state) {
         } else if (type == dlink::PKT_TARGET && len == sizeof(dlink::TargetPos)) {
             dlink::TargetPos target{};
             std::memcpy(&target, payload, sizeof(dlink::TargetPos));
-            state.updateTarget(target);
+            state.updateTarget(target, state.telemetry.t_ms);
         }
     }
 

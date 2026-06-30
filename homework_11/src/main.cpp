@@ -42,8 +42,11 @@ static void logDecision(const MissionDecision& decision) {
     LOG("DECISION target=" << decision.targetId
         << ", angleError=" << decision.angleError
         << ", distance=" << decision.distanceToTarget
+        << ", predictedTarget=(" << decision.predictedTargetX << ", " << decision.predictedTargetY << ")"
         << ", dropPoint=(" << decision.dropPointX << ", " << decision.dropPointY << ")"
         << ", distanceToDropPoint=" << decision.distanceToDropPoint
+        << ", releaseHeading=" << decision.releaseHeading
+        << ", releaseTurnThreshold=" << decision.releaseTurnThreshold
         << ", accel=" << decision.accel
         << ", turnRate=" << decision.turnRate
         << ", shouldDrop=" << decision.shouldDrop);
@@ -148,6 +151,7 @@ int main(int argc, char* argv[]) {
     bool ammoLogged = false;
     uint32_t lastTelemetryLogMs = 0;
     std::chrono::steady_clock::time_point lastControlSend = std::chrono::steady_clock::now();
+    const auto controlPeriod = std::chrono::milliseconds(20);
 
     while (true) {
         int packets = link.pollIncoming(state);
@@ -172,7 +176,7 @@ int main(int argc, char* argv[]) {
         }
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-        if (now - lastControlSend >= std::chrono::milliseconds(100)) {
+        if (now - lastControlSend >= controlPeriod) {
             MissionDecision decision = missionProcessor.update(state);
             logDecision(decision);
             if (!link.sendControl(decision.accel, decision.turnRate)) {
