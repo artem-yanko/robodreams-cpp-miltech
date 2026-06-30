@@ -12,6 +12,12 @@ struct AmmoParams {
 struct Coord {
     double x{};
     double y{};
+
+    Coord operator+(const Coord& other) const { return {x + other.x, y + other.y}; }
+    Coord operator-(const Coord& other) const { return {x - other.x, y - other.y}; }
+    Coord operator*(double scalar) const { return {x * scalar, y * scalar}; }
+    Coord operator/(double scalar) const { return {x / scalar, y / scalar}; }
+    Coord& operator+=(const Coord& other) { x += other.x; y += other.y; return *this; }
 };
 
 struct DroneConfig {
@@ -34,4 +40,11 @@ struct DroneConfig {
 struct BallisticsResult {
     double flightTime{};
     double horizontalDistance{};
+};
+
+struct DroneMotionState {
+    double currentSpeed{};
+    double currentDir{};
+    double turnTargetDir{};
+    double desiredDir{};
 };

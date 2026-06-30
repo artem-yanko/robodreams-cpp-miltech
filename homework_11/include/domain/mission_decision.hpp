@@ -6,5 +6,8 @@ struct MissionDecision {
     int targetId{-1};
     double angleError{};
     double distanceToTarget{};
+    double dropPointX{};
+    double dropPointY{};
+    double distanceToDropPoint{};
     bool shouldDrop{};
 };

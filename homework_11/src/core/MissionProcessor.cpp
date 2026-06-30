@@ -1,26 +1,53 @@
 #include "core/MissionProcessor.hpp"
 #include "interfaces/IBallisticSolver.hpp"
+#include "interfaces/IDroneState.hpp"
+#include "states/StateAccelerating.hpp"
+#include "states/StateDecelerating.hpp"
+#include "states/StateMoving.hpp"
+#include "states/StateStopped.hpp"
+#include "states/StateTurning.hpp"
+#include "utils/math_utils.hpp"
 
-#include <algorithm>
 #include <cmath>
+#include <cstring>
 
-static double normalizeAngle(double angle) {
-    while (angle > M_PI) {
-        angle -= 2.0 * M_PI;
+static const double SPEED_EPSILON = 1e-6;
+static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
+
+static std::unique_ptr<IDroneState> bootstrapStateFromTelemetry(
+    const dlink::Telemetry& telemetry,
+    const DroneMotionState& droneMotion,
+    const DroneConfig& config
+) {
+    const double angleLeft = std::fabs(calculateAngleDifference(telemetry.dir, droneMotion.desiredDir));
+    const double slowTurnThreshold = config.turnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
+
+    if (telemetry.speed <= SPEED_EPSILON) {
+        if (angleLeft > config.turnThreshold) {
+            return std::make_unique<StateTurning>();
+        }
+        return std::make_unique<StateStopped>();
     }
 
-    while (angle < -M_PI) {
-        angle += 2.0 * M_PI;
+    if (angleLeft > slowTurnThreshold) {
+        return std::make_unique<StateDecelerating>();
     }
 
-    return angle;
+    if (telemetry.speed >= config.attackSpeed - SPEED_EPSILON) {
+        return std::make_unique<StateMoving>();
+    }
+
+    return std::make_unique<StateAccelerating>();
 }
 
 MissionProcessor::MissionProcessor(const RuntimeConfig& config, std::unique_ptr<IBallisticSolver> solver)
-    : config(config), solver(std::move(solver)) {
+    : config(config), solver(std::move(solver)), droneState(std::make_unique<StateStopped>()) {
+    droneMotion.currentDir = config.drone.initialDir;
 }
 
-MissionDecision MissionProcessor::update(const MissionState& state) const {
+MissionProcessor::~MissionProcessor() = default;
+
+MissionDecision MissionProcessor::update(const MissionState& state) {
     MissionDecision decision{};
 
     if (!state.telemetryReceived || state.targets.empty()) {
@@ -29,13 +56,14 @@ MissionDecision MissionProcessor::update(const MissionState& state) const {
 
     const dlink::TargetPos& target = state.targets.front();
     decision.targetId = static_cast<int>(target.id);
-    const double dx = static_cast<double>(target.x) - static_cast<double>(state.telemetry.x);
-    const double dy = static_cast<double>(target.y) - static_cast<double>(state.telemetry.y);
-    const double distanceToTarget = std::hypot(dx, dy);
-    const double targetDir = std::atan2(dy, dx);
-    const double angleError = normalizeAngle(targetDir - static_cast<double>(state.telemetry.dir));
-    decision.angleError = angleError;
+    Coord dronePosition{state.telemetry.x, state.telemetry.y};
+    Coord targetPosition{target.x, target.y};
+    Coord deltaToTarget = targetPosition - dronePosition;
+    const double distanceToTarget = distanceBetween(dronePosition, targetPosition);
     decision.distanceToTarget = distanceToTarget;
+
+    droneMotion.currentDir = state.telemetry.dir;
+    droneMotion.currentSpeed = state.telemetry.speed;
 
     AmmoParams ammo{};
     if (state.ammoReceived) {
@@ -52,21 +80,60 @@ MissionDecision MissionProcessor::update(const MissionState& state) const {
         ballistics = solver->solve(config.drone, ammo);
     }
 
-    const double normalizedTurn = angleError / config.drone.angularSpeed;
-    decision.turnRate = static_cast<float>(std::clamp(normalizedTurn, -1.0, 1.0));
-
-    const double absAngleError = std::abs(angleError);
-    if (absAngleError <= config.drone.turnThreshold) {
-        decision.accel = 1.0f;
-    } else if (absAngleError <= config.drone.turnThreshold * 3.0) {
-        decision.accel = 0.3f;
-    } else {
-        decision.accel = 0.0f;
+    double dropPointX = targetPosition.x;
+    double dropPointY = targetPosition.y;
+    double distanceToDropPoint = distanceToTarget;
+    if (ballistics.horizontalDistance > 0.0 && distanceToTarget > 0.0) {
+        Coord directionToTarget = normalize(deltaToTarget);
+        Coord dropPoint = targetPosition - directionToTarget * ballistics.horizontalDistance;
+        dropPointX = dropPoint.x;
+        dropPointY = dropPoint.y;
+        distanceToDropPoint = distanceBetween(dronePosition, dropPoint);
     }
+
+    decision.dropPointX = dropPointX;
+    decision.dropPointY = dropPointY;
+    decision.distanceToDropPoint = distanceToDropPoint;
+
+    Coord goal{dropPointX, dropPointY};
+    Coord deltaToGoal = goal - dronePosition;
+    if (distanceBetween(dronePosition, goal) > 0.0) {
+        droneMotion.desiredDir = std::atan2(deltaToGoal.y, deltaToGoal.x);
+    } else {
+        droneMotion.desiredDir = state.telemetry.dir;
+    }
+
+    if (!stateBootstrapped) {
+        droneState = bootstrapStateFromTelemetry(state.telemetry, droneMotion, config.drone);
+        if (std::strcmp(droneState->name(), "Turning") == 0) {
+            droneMotion.turnTargetDir = droneMotion.desiredDir;
+        }
+        stateBootstrapped = true;
+    }
+
+    DroneContext ctx{
+        .telemetry = state.telemetry,
+        .droneMotion = droneMotion,
+        .goal = goal,
+        .config = config.drone,
+        .activeTurnThreshold = config.drone.turnThreshold,
+        .decision = decision
+    };
+
+    std::unique_ptr<IDroneState> nextState = droneState->execute(ctx);
+    if (nextState) {
+        droneState = std::move(nextState);
+    }
+
+    double angleError = calculateAngleDifference(state.telemetry.dir, droneMotion.desiredDir);
+    decision.angleError = angleError;
+    const double absAngleError = std::fabs(angleError);
 
     if (!state.dropDone
         && ballistics.horizontalDistance > 0.0
-        && distanceToTarget <= ballistics.horizontalDistance
+        && distanceToDropPoint <= config.drone.hitRadius
+        && droneState->isMoving()
+        && std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5
         && absAngleError <= config.drone.turnThreshold) {
         decision.shouldDrop = true;
     }

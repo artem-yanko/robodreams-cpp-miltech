@@ -32,6 +32,7 @@ static void logTelemetry(const MissionState& state) {
 }
 
 static void logTarget(const MissionState& state) {
+    (void)state;
     DEBUG("TARGET id=" << static_cast<int>(state.lastTargetUpdate.id)
           << ", pos=(" << state.lastTargetUpdate.x << ", " << state.lastTargetUpdate.y << ")"
           << ", knownTargets=" << state.targets.size());
@@ -41,6 +42,8 @@ static void logDecision(const MissionDecision& decision) {
     LOG("DECISION target=" << decision.targetId
         << ", angleError=" << decision.angleError
         << ", distance=" << decision.distanceToTarget
+        << ", dropPoint=(" << decision.dropPointX << ", " << decision.dropPointY << ")"
+        << ", distanceToDropPoint=" << decision.distanceToDropPoint
         << ", accel=" << decision.accel
         << ", turnRate=" << decision.turnRate
         << ", shouldDrop=" << decision.shouldDrop);

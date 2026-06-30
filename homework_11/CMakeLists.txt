@@ -25,8 +25,23 @@ add_library(hw11_table_solver src/providers/TableSolver.cpp)
 target_include_directories(hw11_table_solver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(hw11_table_solver PRIVATE -Wall -Wextra -pedantic)
 
+add_library(hw11_math_utils src/utils/math_utils.cpp)
+target_include_directories(hw11_math_utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(hw11_math_utils PRIVATE -Wall -Wextra -pedantic)
+
+add_library(hw11_states
+    src/states/StateStopped.cpp
+    src/states/StateTurning.cpp
+    src/states/StateAccelerating.cpp
+    src/states/StateMoving.cpp
+    src/states/StateDecelerating.cpp)
+target_include_directories(hw11_states PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(hw11_states PUBLIC hw11_math_utils)
+target_compile_options(hw11_states PRIVATE -Wall -Wextra -pedantic)
+
 add_library(hw11_mission_processor src/core/MissionProcessor.cpp)
 target_include_directories(hw11_mission_processor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(hw11_mission_processor PUBLIC hw11_math_utils hw11_states)
 target_compile_options(hw11_mission_processor PRIVATE -Wall -Wextra -pedantic)
 
 add_executable(homework_11_app src/main.cpp)
