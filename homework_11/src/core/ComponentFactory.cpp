@@ -1,5 +1,6 @@
 #include "core/ComponentFactory.hpp"
 
+#include "providers/AnalyticalSolver.hpp"
 #include "providers/TableSolver.hpp"
 
 std::unique_ptr<IBallisticSolver> ComponentFactory::createSolver(
@@ -10,6 +11,7 @@ std::unique_ptr<IBallisticSolver> ComponentFactory::createSolver(
     case SolverType::TABLE:
         return std::make_unique<TableSolver>(ballisticTablePath);
     case SolverType::ANALYTICAL:
+        return std::make_unique<AnalyticalSolver>();
     default:
         return nullptr;
     }
