@@ -17,9 +17,11 @@ struct MissionState {
     bool dropDone{};
     bool telemetryReceived{};
     bool ammoReceived{};
+    bool droneCfgReceived{};
     bool targetUpdateReceived{};
     dlink::Telemetry telemetry{};
     dlink::AmmoCfg ammo{};
+    dlink::DroneCfg droneCfg{};
     dlink::TargetPos lastTargetUpdate{};
     std::vector<dlink::TargetPos> targets{};
     std::vector<TargetTrack> targetTracks{};

@@ -1,11 +1,8 @@
+#include "core/ComponentFactory.hpp"
 #include "core/MissionProcessor.hpp"
 #include "domain/mission_state.hpp"
 #include "domain/runtime_config.hpp"
 #include "interfaces/IBallisticSolver.hpp"
-#include "io/drone_link_adapter.hpp"
-#include "io/gpio_controller.hpp"
-#include "providers/JsonConfigLoader.hpp"
-#include "providers/TableSolver.hpp"
 #include "utils/logger.hpp"
 
 #include <chrono>
@@ -21,6 +18,15 @@ static void logAmmo(const MissionState& state) {
         << ", lift=" << state.ammo.lift
         << ", hitRadius=" << state.ammo.hitRadius
         << ", nTargets=" << static_cast<int>(state.ammo.nTargets));
+}
+
+static void logDroneCfg(const MissionState& state) {
+    LOG("DRONE_CFG attackSpeed=" << state.droneCfg.attackSpeed
+        << ", accelerationPath=" << state.droneCfg.accelerationPath
+        << ", angularSpeed=" << state.droneCfg.angularSpeed
+        << ", turnThreshold=" << state.droneCfg.turnThreshold
+        << ", timeStep=" << state.droneCfg.timeStep
+        << ", timeScale=" << state.droneCfg.timeScale);
 }
 
 static void logTelemetry(const MissionState& state) {
@@ -50,6 +56,20 @@ static void logDecision(const MissionDecision& decision) {
         << ", accel=" << decision.accel
         << ", turnRate=" << decision.turnRate
         << ", shouldDrop=" << decision.shouldDrop);
+}
+
+static void applyDroneCfg(DroneConfig& drone, const MissionState& state) {
+    if (!state.droneCfgReceived) {
+        return;
+    }
+
+    drone.attackSpeed = state.droneCfg.attackSpeed;
+    drone.accelPath = state.droneCfg.accelerationPath;
+    drone.angularSpeed = state.droneCfg.angularSpeed;
+    drone.turnThreshold = state.droneCfg.turnThreshold;
+    drone.simTimeStep = state.droneCfg.timeStep;
+    drone.physicsTimeStep = state.droneCfg.timeStep;
+    drone.timeScale = state.droneCfg.timeScale;
 }
 
 static RuntimeConfig parseArgs(int argc, char* argv[]) {
@@ -100,37 +120,34 @@ int main(int argc, char* argv[]) {
     MissionState state{};
     std::vector<AmmoParams> ammoList;
 
-    JsonConfigLoader configLoader(config.configPath, config.ammoPath);
-    if (!configLoader.loadConfig(config.drone)) {
+    std::unique_ptr<JsonConfigLoader> configLoader = ComponentFactory::createLoader(config.configPath, config.ammoPath);
+    if (!configLoader || !configLoader->loadConfig(config.drone)) {
         ERROR_LOG("Failed to load drone config");
         return 1;
     }
 
-    if (!configLoader.loadAmmo(ammoList)) {
+    if (!configLoader->loadAmmo(ammoList)) {
         ERROR_LOG("Failed to load ammo config");
         return 1;
     }
 
-    DroneLinkAdapter link;
-    if (!link.open(config.uartDevice)) {
+    std::unique_ptr<DroneLinkAdapter> link = ComponentFactory::createDroneLinkAdapter();
+    if (!link || !link->open(config.uartDevice)) {
         ERROR_LOG("Failed to open UART link");
         return 1;
     }
 
-    GpioController gpio;
-    if (!gpio.init(config)) {
+    std::unique_ptr<GpioController> gpio = ComponentFactory::createGpioController();
+    if (!gpio || !gpio->init(config)) {
         ERROR_LOG("Failed to initialize GPIO");
         return 1;
     }
 
-    if (!gpio.setStartHigh()) {
+    if (!gpio->setStartHigh()) {
         ERROR_LOG("Failed to raise START line");
         return 1;
     }
     state.startRaised = true;
-
-    std::unique_ptr<IBallisticSolver> solver = std::make_unique<TableSolver>(config.ballisticTablePath);
-    MissionProcessor missionProcessor(config, std::move(solver));
 
     LOG("Homework 11 skeleton initialized");
     LOG("Mode=" << (config.mode == SIM_MODE ? "sim" : "hw")
@@ -149,12 +166,16 @@ int main(int argc, char* argv[]) {
         << ", simTimeStep=" << config.drone.simTimeStep);
 
     bool ammoLogged = false;
+    bool droneCfgLogged = false;
+    bool runtimeConfigApplied = false;
     uint32_t lastTelemetryLogMs = 0;
+    std::chrono::steady_clock::time_point startup = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point lastControlSend = std::chrono::steady_clock::now();
     const auto controlPeriod = std::chrono::milliseconds(20);
+    std::unique_ptr<MissionProcessor> missionProcessor;
 
     while (true) {
-        int packets = link.pollIncoming(state);
+        int packets = link->pollIncoming(state);
         if (packets < 0) {
             ERROR_LOG("UART polling failed");
             return 1;
@@ -163,6 +184,45 @@ int main(int argc, char* argv[]) {
         if (state.ammoReceived && !ammoLogged) {
             logAmmo(state);
             ammoLogged = true;
+        }
+
+        if (state.droneCfgReceived && !droneCfgLogged) {
+            logDroneCfg(state);
+            droneCfgLogged = true;
+        }
+
+        if (!runtimeConfigApplied && state.telemetryReceived) {
+            const bool haveRuntimeCfg = state.droneCfgReceived;
+            const bool startupGraceElapsed = std::chrono::steady_clock::now() - startup >= std::chrono::milliseconds(500);
+            if (haveRuntimeCfg || startupGraceElapsed) {
+                applyDroneCfg(config.drone, state);
+                config.drone.startPos = Coord{state.telemetry.x, state.telemetry.y};
+                config.drone.altitude = state.telemetry.z;
+                config.drone.initialDir = state.telemetry.dir;
+                runtimeConfigApplied = true;
+
+                LOG("Runtime config attackSpeed=" << config.drone.attackSpeed
+                    << ", accelPath=" << config.drone.accelPath
+                    << ", angularSpeed=" << config.drone.angularSpeed
+                    << ", turnThreshold=" << config.drone.turnThreshold
+                    << ", simTimeStep=" << config.drone.simTimeStep
+                    << ", startPos=(" << config.drone.startPos.x << ", " << config.drone.startPos.y << ")"
+                    << ", altitude=" << config.drone.altitude
+                    << ", initialDir=" << config.drone.initialDir);
+
+                std::unique_ptr<IBallisticSolver> solver =
+                    ComponentFactory::createSolver(SolverType::TABLE, config.ballisticTablePath);
+                if (!solver) {
+                    ERROR_LOG("Failed to create ballistic solver");
+                    return 1;
+                }
+
+                missionProcessor = ComponentFactory::createMissionProcessor(config, std::move(solver));
+                if (!missionProcessor) {
+                    ERROR_LOG("Failed to create mission processor");
+                    return 1;
+                }
+            }
         }
 
         if (state.telemetryReceived && state.telemetry.t_ms >= lastTelemetryLogMs + 1000) {
@@ -176,15 +236,15 @@ int main(int argc, char* argv[]) {
         }
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-        if (now - lastControlSend >= controlPeriod) {
-            MissionDecision decision = missionProcessor.update(state);
+        if (missionProcessor && now - lastControlSend >= controlPeriod) {
+            MissionDecision decision = missionProcessor->update(state);
             logDecision(decision);
-            if (!link.sendControl(decision.accel, decision.turnRate)) {
+            if (!link->sendControl(decision.accel, decision.turnRate)) {
                 ERROR_LOG("Failed to send CONTROL");
             }
 
             if (decision.shouldDrop && !state.dropDone) {
-                if (!gpio.pulseDrop()) {
+                if (!gpio->pulseDrop()) {
                     ERROR_LOG("Failed to pulse DROP line");
                 } else {
                     state.dropDone = true;

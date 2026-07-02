@@ -35,6 +35,7 @@ enum PacketType : uint8_t {
     PKT_AMMO      = 0x03,  // параметри боєприпасу + hitRadius (один раз на старті)
     PKT_RESULT    = 0x04,  // вердикт чекера (HIT/MISS) — лише на реальній малині по UART назад
     PKT_CONTROL   = 0x05,  // КЕРУВАННЯ: студент -> чекер (прискорення і швидкість повороту)
+    PKT_CONFIG    = 0x06,  // параметри дрона/симуляції від чекера
 };
 
 
@@ -85,6 +86,19 @@ struct Result {
 struct Control {
     float accel;       // прискорення вздовж курсу, [-1..1] (1 = повний газ, -1 = гальмо)
     float turnRate;    // швидкість повороту, [-1..1] (1 = макс. вліво, -1 = вправо)
+};
+
+
+// PKT_CONFIG — параметри місії з config (чекер шле студенту раз на старті, як AMMO).
+// Це ті поля config ДЗ9, яких немає в TELEMETRY/AMMO. position/altitude/dir беруться
+// з телеметрії, hitRadius і параметри боєприпасу — з AMMO.
+struct DroneCfg {
+    float attackSpeed;          // макс. швидкість дрона, м/с
+    float accelerationPath;     // шлях розгону до attackSpeed, м (прискорення = v^2/(2*path))
+    float angularSpeed;         // макс. кутова швидкість повороту, рад/с
+    float turnThreshold;        // поріг кута повороту, рад
+    float timeStep;             // крок симуляції, с
+    float timeScale;            // прискорення симуляції (1 = реальний час; задається аргументом чекера)
 };
 
 

@@ -82,6 +82,9 @@ int DroneLinkAdapter::pollIncoming(MissionState& state) {
         } else if (type == dlink::PKT_AMMO && len == sizeof(dlink::AmmoCfg)) {
             std::memcpy(&state.ammo, payload, sizeof(dlink::AmmoCfg));
             state.ammoReceived = true;
+        } else if (type == dlink::PKT_CONFIG && len == sizeof(dlink::DroneCfg)) {
+            std::memcpy(&state.droneCfg, payload, sizeof(dlink::DroneCfg));
+            state.droneCfgReceived = true;
         } else if (type == dlink::PKT_TARGET && len == sizeof(dlink::TargetPos)) {
             dlink::TargetPos target{};
             std::memcpy(&target, payload, sizeof(dlink::TargetPos));
