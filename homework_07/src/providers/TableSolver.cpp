@@ -1,12 +1,15 @@
 #include "providers/TableSolver.hpp"
 #include "utils/logger.hpp"
-#include <fstream>
+
 #include <algorithm>
+#include <fstream>
+#include <stdexcept>
 
 // Constructor loads the ballistic table from the specified file.
 TableSolver::TableSolver(const std::string& ballisticTablePath) {
     if (!table_.load(ballisticTablePath)) {
         ERROR_LOG("Failed to load ballistic table from \"" << ballisticTablePath << "\"");
+        throw std::runtime_error("Failed to load ballistic table: " + ballisticTablePath);
     }
 }
 bool TableSolver::BallisticTable::load(const std::string& path) {
