@@ -53,12 +53,8 @@ static bool calculateTargetVelocity(int targetIndex, const TargetData& targets, 
   return true;
 }
 
-static double calculateTimeToStop(DronePhase phase, double currentSpeed, double acceleration, double turnRemainingTime) {
-  if (phase == STOPPED) {
-    return 0.0;
-  }
-
-  if (phase == TURNING) {
+static double calculateTimeToStop(bool isTurning, double currentSpeed, double acceleration, double turnRemainingTime) {
+  if (isTurning) {
     return turnRemainingTime;
   }
 
@@ -139,23 +135,23 @@ static bool estimateTimeToCompleteMove(double& totalTime, double& currentSpeed, 
   return true;
 }
 
-static bool estimateTimeToTargetPath(double& totalTime, const Coord& currentPos, double currentSpeed, double currentDir, DronePhase currentPhase, int currentTargetIndex, int targetIndex, double turnTargetDir, double turnRemainingTime, bool needManeuver, const Coord& maneuverPoint, const Coord& dropPoint, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
+static bool estimateTimeToTargetPath(double& totalTime, const Coord& currentPos, double currentSpeed, double currentDir, bool isTurning, bool isMoving, bool isDecelerating, bool isAccelerating, int currentTargetIndex, int targetIndex, double turnTargetDir, double turnRemainingTime, bool needManeuver, const Coord& maneuverPoint, const Coord& dropPoint, double attackSpeed, double acceleration, double angularSpeed, double turnThreshold) {
   totalTime = 0.0;
   double localSpeed = currentSpeed;
   double localDir = currentDir;
   Coord localPos = currentPos;
 
-  if (currentPhase == TURNING && currentTargetIndex == targetIndex) {
+  if (isTurning && currentTargetIndex == targetIndex) {
     totalTime += turnRemainingTime;
     localSpeed = 0.0;
     localDir = turnTargetDir;
   }
 
   if (currentTargetIndex != -1 && currentTargetIndex != targetIndex) {
-    double timeToStop = calculateTimeToStop(currentPhase, currentSpeed, acceleration, turnRemainingTime);
+    double timeToStop = calculateTimeToStop(isTurning, currentSpeed, acceleration, turnRemainingTime);
     totalTime += timeToStop;
 
-    if (currentPhase == MOVING || currentPhase == ACCELERATING || currentPhase == DECELERATING) {
+    if (isMoving || isAccelerating || isDecelerating) {
       if (acceleration > 0.0 && currentSpeed > 0.0) {
         double stopDistance = currentSpeed * currentSpeed / (2.0 * acceleration);
         localPos += {cos(localDir) * stopDistance, sin(localDir) * stopDistance};
@@ -163,7 +159,7 @@ static bool estimateTimeToTargetPath(double& totalTime, const Coord& currentPos,
     }
 
     localSpeed = 0.0;
-    if (currentPhase == TURNING) {
+    if (isTurning) {
       localDir = turnTargetDir;
     }
   }
@@ -230,7 +226,7 @@ void TargetAnalyzer::calculateDropPoint(Coord& dropPoint, Coord& maneuverPoint, 
   }
 }
 
-bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& config, const DroneMotionState& droneMotion, const TargetData& targets, int targetIndex, const Coord& dronePosition, double simulationTime, const BallisticsResult& ballistics, double acceleration, bool returningFromManuver) {
+bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& config, const DroneMotionState& droneMotion, bool isTurning, bool isMoving, bool isDecelerating, bool isAccelerating, const TargetData& targets, int targetIndex, const Coord& dronePosition, double simulationTime, const BallisticsResult& ballistics, double acceleration, bool returningFromManuver) {
   Target target = analyzeTarget(targetIndex, targets, simulationTime, config.arrayTimeStep);
   Coord predictedTarget = predictTargetPosition(target, ballistics.flightTime);
   Coord dropPoint{};
@@ -244,7 +240,7 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
     needManeuver = false;
   }
 
-  if (!estimateTimeToTargetPath(totalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, droneMotion.phase, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, needManeuver, maneuverPoint, dropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold)) {
+  if (!estimateTimeToTargetPath(totalTime, dronePosition, droneMotion.currentSpeed, droneMotion.currentDir, isTurning, isMoving, isDecelerating, isAccelerating, droneMotion.currentTargetIndex, targetIndex, droneMotion.turnTargetDir, droneMotion.turnRemainingTime, needManeuver, maneuverPoint, dropPoint, config.attackSpeed, acceleration, config.angularSpeed, config.turnThreshold)) {
     ERROR_LOG("Invalid time estimate to drop point");
     return false;
   }
@@ -260,14 +256,14 @@ bool TargetAnalyzer::evaluateTarget(BestTargetResult& best, const DroneConfig& c
   return true;
 }
 
-bool TargetAnalyzer::selectBestTarget(BestTargetResult& result, const DroneConfig& config, const DroneMotionState& droneMotion, const Coord& dronePosition, const TargetData& targets, double simulationTime, const BallisticsResult& ballistics, double acceleration, bool returningFromManuver) {
+bool TargetAnalyzer::selectBestTarget(BestTargetResult& result, const DroneConfig& config, const DroneMotionState& droneMotion, bool isTurning, bool isMoving, bool isDecelerating, bool isAccelerating, const Coord& dronePosition, const TargetData& targets, double simulationTime, const BallisticsResult& ballistics, double acceleration, bool returningFromManuver) {
   result.targetIndex = -1;
   double minTotalTime = VERY_LARGE_TIME;
   double currentTargetTotalTime = VERY_LARGE_TIME;
 
   for (int targetIndex = 0; targetIndex < targets.targetCount; ++targetIndex) {
     BestTargetResult candidate{};
-    if (!evaluateTarget(candidate, config, droneMotion, targets, targetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
+    if (!evaluateTarget(candidate, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets, targetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
       DEBUG("Invalid calculation for target " << targetIndex);
       continue;
     }
@@ -289,7 +285,7 @@ bool TargetAnalyzer::selectBestTarget(BestTargetResult& result, const DroneConfi
 
   if (result.targetIndex != droneMotion.currentTargetIndex && droneMotion.currentTargetIndex != -1) {
     if (currentTargetTotalTime < VERY_LARGE_TIME && minTotalTime > currentTargetTotalTime - TARGET_SWITCH_PREVENTION) {
-      if (!evaluateTarget(result, config, droneMotion, targets, droneMotion.currentTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
+      if (!evaluateTarget(result, config, droneMotion, isTurning, isMoving, isDecelerating, isAccelerating, targets, droneMotion.currentTargetIndex, dronePosition, simulationTime, ballistics, acceleration, returningFromManuver)) {
         DEBUG("Failed to keep focus on the current target");
         return false;
       }

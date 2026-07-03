@@ -4,24 +4,27 @@
 #include "interfaces/IBallisticSolver.hpp"
 #include "interfaces/IConfigLoader.hpp"
 #include "interfaces/ITargetProvider.hpp"
+#include "interfaces/IDroneState.hpp"
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
 class MissionProcessor {
 public:
     ~MissionProcessor();
-    MissionProcessor(ITargetProvider* targets, IBallisticSolver* solver, IConfigLoader* configLoader);
+    MissionProcessor(std::unique_ptr<ITargetProvider> targets, std::unique_ptr<IBallisticSolver> solver, std::unique_ptr<IConfigLoader> configLoader);
 
     bool init();
     bool hasNext();
     BallisticsResult step();
     void reset();
-    void changeSolver(IBallisticSolver* newSolver);
+    void changeSolver(std::unique_ptr<IBallisticSolver> newSolver);
 
 private:
-    ITargetProvider* targets;
-    IBallisticSolver* solver;
-    IConfigLoader* configLoader;
+    std::unique_ptr<ITargetProvider> targets;
+    std::unique_ptr<IBallisticSolver> solver;
+    std::unique_ptr<IConfigLoader> configLoader;
+    std::unique_ptr<IDroneState> droneState;
 
     DroneConfig config{};
     std::vector<AmmoParams> ammoList{};
