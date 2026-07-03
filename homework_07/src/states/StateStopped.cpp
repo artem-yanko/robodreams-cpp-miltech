@@ -5,17 +5,20 @@
 #include <cmath>
 
 std::unique_ptr<IDroneState> StateStopped::execute(DroneContext& ctx) {
-    ctx.droneMotion.currentSpeed = 0.0;
-
-    double deltaAngle = std::fabs(calculateAngleDifference(ctx.droneMotion.currentDir, ctx.droneMotion.desiredDir));
-    if (deltaAngle > ctx.config.turnThreshold) {
+    double deltaAngle = std::fabs(calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.desiredDir));
+    if (deltaAngle > ctx.activeTurnThreshold) {
         ctx.droneMotion.turnTargetDir = ctx.droneMotion.desiredDir;
-        ctx.droneMotion.turnRemainingTime = deltaAngle / ctx.config.angularSpeed;
+        ctx.command.mode = DroneMode::Turning;
+        ctx.command.angleSpeed =
+            calculateAngleDifference(ctx.telemetry.direction, ctx.droneMotion.desiredDir) > 0.0
+                ? ctx.config.angularSpeed
+                : -ctx.config.angularSpeed;
         return std::make_unique<StateTurning>();
-    } else {
-        ctx.droneMotion.currentDir = ctx.droneMotion.desiredDir;
-        return std::make_unique<StateAccelerating>();
     }
+
+    ctx.command.mode = DroneMode::Accelerating;
+    ctx.command.angleSpeed = 0.0;
+    return std::make_unique<StateAccelerating>();
 }
 
 const char* StateStopped::name() const {

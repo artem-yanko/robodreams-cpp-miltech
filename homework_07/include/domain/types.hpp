@@ -29,7 +29,10 @@ struct DroneConfig {
     double accelPath{};
     std::string ammoName{};
     double arrayTimeStep{};
+    double targetTimeStep{};
     double simTimeStep{};
+    double physicsTimeStep{};
+    double timeScale{1.0};
     double hitRadius{};
     double angularSpeed{};
     double turnThreshold{};
@@ -58,6 +61,8 @@ struct BestTargetResult {
     Coord maneuverPoint{};
     Coord targetPos{};
     Coord predictedTarget{};
+    double releaseHeading{};
+    double releaseTurnThreshold{};
 };
 
 struct DroneMotionState {
@@ -78,4 +83,25 @@ struct TargetData {
 struct Target {
     Coord position{};
     Coord velocity{};
+};
+
+enum class DroneMode {
+    Stopped,
+    Accelerating,
+    Decelerating,
+    Turning,
+    Moving
+};
+
+struct DroneCommand {
+    DroneMode mode{DroneMode::Stopped};
+    double angleSpeed{};
+    double effectiveFromSimTime{};
+};
+
+struct DroneTelemetry {
+    Coord pos{};
+    Coord speed{};
+    double direction{};
+    DroneMode mode{DroneMode::Stopped};
 };
