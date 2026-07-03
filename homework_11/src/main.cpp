@@ -58,6 +58,11 @@ static void logDecision(const MissionDecision& decision) {
         << ", shouldDrop=" << decision.shouldDrop);
 }
 
+static void logImpactEstimate(const MissionDecision& decision) {
+    LOG("IMPACT estimate=(" << decision.impactPointX << ", " << decision.impactPointY << ")"
+        << ", delta=(" << decision.impactDeltaX << ", " << decision.impactDeltaY << ")");
+}
+
 static void applyDroneCfg(DroneConfig& drone, const MissionState& state) {
     if (!state.droneCfgReceived) {
         return;
@@ -119,16 +124,20 @@ int main(int argc, char* argv[]) {
     RuntimeConfig config = parseArgs(argc, argv);
     MissionState state{};
     std::vector<AmmoParams> ammoList;
+    bool fallbackConfigLoaded = false;
+    bool fallbackAmmoLoaded = false;
 
     std::unique_ptr<JsonConfigLoader> configLoader = ComponentFactory::createLoader(config.configPath, config.ammoPath);
-    if (!configLoader || !configLoader->loadConfig(config.drone)) {
-        ERROR_LOG("Failed to load drone config");
-        return 1;
-    }
+    if (configLoader) {
+        fallbackConfigLoaded = configLoader->loadConfig(config.drone);
+        if (!fallbackConfigLoaded) {
+            LOG("Config fallback unavailable: " << config.configPath);
+        }
 
-    if (!configLoader->loadAmmo(ammoList)) {
-        ERROR_LOG("Failed to load ammo config");
-        return 1;
+        fallbackAmmoLoaded = configLoader->loadAmmo(ammoList);
+        if (!fallbackAmmoLoaded) {
+            LOG("Ammo fallback unavailable: " << config.ammoPath);
+        }
     }
 
     std::unique_ptr<DroneLinkAdapter> link = ComponentFactory::createDroneLinkAdapter();
@@ -159,17 +168,20 @@ int main(int argc, char* argv[]) {
         << ", ballisticTable=" << config.ballisticTablePath
         << ", startLine=" << config.startLine
         << ", dropLine=" << config.dropLine);
-    LOG("Config attackSpeed=" << config.drone.attackSpeed
-        << ", accelPath=" << config.drone.accelPath
-        << ", angularSpeed=" << config.drone.angularSpeed
-        << ", turnThreshold=" << config.drone.turnThreshold
-        << ", simTimeStep=" << config.drone.simTimeStep);
+    if (fallbackConfigLoaded) {
+        LOG("Config attackSpeed=" << config.drone.attackSpeed
+            << ", accelPath=" << config.drone.accelPath
+            << ", angularSpeed=" << config.drone.angularSpeed
+            << ", turnThreshold=" << config.drone.turnThreshold
+            << ", simTimeStep=" << config.drone.simTimeStep);
+    } else {
+        LOG("Config fallback not loaded; waiting for checker runtime config");
+    }
 
     bool ammoLogged = false;
     bool droneCfgLogged = false;
     bool runtimeConfigApplied = false;
     uint32_t lastTelemetryLogMs = 0;
-    std::chrono::steady_clock::time_point startup = std::chrono::steady_clock::now();
     std::chrono::steady_clock::time_point lastControlSend = std::chrono::steady_clock::now();
     const auto controlPeriod = std::chrono::milliseconds(20);
     std::unique_ptr<MissionProcessor> missionProcessor;
@@ -191,14 +203,19 @@ int main(int argc, char* argv[]) {
             droneCfgLogged = true;
         }
 
-        if (!runtimeConfigApplied && state.telemetryReceived) {
-            const bool haveRuntimeCfg = state.droneCfgReceived;
-            const bool startupGraceElapsed = std::chrono::steady_clock::now() - startup >= std::chrono::milliseconds(500);
-            if (haveRuntimeCfg || startupGraceElapsed) {
-                applyDroneCfg(config.drone, state);
+        if (!runtimeConfigApplied && state.telemetryReceived && state.ammoReceived) {
+            const bool haveConfigSource = state.droneCfgReceived || fallbackConfigLoaded;
+            if (haveConfigSource) {
+                if (state.droneCfgReceived) {
+                    applyDroneCfg(config.drone, state);
+                }
+
                 config.drone.startPos = Coord{state.telemetry.x, state.telemetry.y};
                 config.drone.altitude = state.telemetry.z;
                 config.drone.initialDir = state.telemetry.dir;
+                config.drone.hitRadius = state.ammo.hitRadius;
+                config.drone.ammoName = state.ammo.name;
+
                 runtimeConfigApplied = true;
 
                 LOG("Runtime config attackSpeed=" << config.drone.attackSpeed
@@ -248,6 +265,7 @@ int main(int argc, char* argv[]) {
                     ERROR_LOG("Failed to pulse DROP line");
                 } else {
                     state.dropDone = true;
+                    logImpactEstimate(decision);
                     LOG("DROP triggered");
                 }
             }

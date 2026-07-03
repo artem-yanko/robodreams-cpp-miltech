@@ -75,6 +75,8 @@ int DroneLinkAdapter::pollIncoming(MissionState& state) {
         }
 
         ++packets;
+        DEBUG("UART packet type=" << static_cast<int>(type)
+              << ", len=" << static_cast<int>(len));
 
         if (type == dlink::PKT_TELEMETRY && len == sizeof(dlink::Telemetry)) {
             std::memcpy(&state.telemetry, payload, sizeof(dlink::Telemetry));
@@ -85,10 +87,16 @@ int DroneLinkAdapter::pollIncoming(MissionState& state) {
         } else if (type == dlink::PKT_CONFIG && len == sizeof(dlink::DroneCfg)) {
             std::memcpy(&state.droneCfg, payload, sizeof(dlink::DroneCfg));
             state.droneCfgReceived = true;
+        } else if (type == dlink::PKT_CONFIG) {
+            DEBUG("PKT_CONFIG size mismatch: expected=" << sizeof(dlink::DroneCfg)
+                  << ", actual=" << static_cast<int>(len));
         } else if (type == dlink::PKT_TARGET && len == sizeof(dlink::TargetPos)) {
             dlink::TargetPos target{};
             std::memcpy(&target, payload, sizeof(dlink::TargetPos));
             state.updateTarget(target, state.telemetry.t_ms);
+        } else {
+            DEBUG("Unhandled UART packet type=" << static_cast<int>(type)
+                  << ", len=" << static_cast<int>(len));
         }
     }
 

@@ -203,6 +203,10 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     decision.releaseTurnThreshold = best.releaseTurnThreshold;
     const double distanceToDropPoint = distanceBetween(dronePosition, best.dropPoint);
     decision.distanceToDropPoint = distanceToDropPoint;
+    decision.impactPointX = dronePosition.x + std::cos(state.telemetry.dir) * ballistics.horizontalDistance;
+    decision.impactPointY = dronePosition.y + std::sin(state.telemetry.dir) * ballistics.horizontalDistance;
+    decision.impactDeltaX = decision.impactPointX - best.targetPos.x;
+    decision.impactDeltaY = decision.impactPointY - best.targetPos.y;
 
     Coord goal{};
     bool headingToManeuver = best.needManeuver && !atManeuverPoint;

@@ -11,6 +11,10 @@ struct MissionDecision {
     double dropPointX{};
     double dropPointY{};
     double distanceToDropPoint{};
+    double impactPointX{};
+    double impactPointY{};
+    double impactDeltaX{};
+    double impactDeltaY{};
     double releaseHeading{};
     double releaseTurnThreshold{};
     bool shouldDrop{};
