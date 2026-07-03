@@ -7,6 +7,7 @@
 #include <cmath>
 
 static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
+static const double ANGLE_EPSILON = 1e-6;
 
 std::unique_ptr<IDroneState> StateMoving::execute(DroneContext& ctx) {
     double angleLeft = calculateAngleDifference(ctx.telemetry.dir, ctx.droneMotion.desiredDir);
@@ -18,7 +19,7 @@ std::unique_ptr<IDroneState> StateMoving::execute(DroneContext& ctx) {
         return std::make_unique<StateDecelerating>();
     }
 
-    if (std::fabs(angleLeft) > ctx.activeTurnThreshold) {
+    if (std::fabs(angleLeft) > ANGLE_EPSILON) {
         double turnStep = ctx.config.physicsTimeStep > 0.0 ? ctx.config.physicsTimeStep : ctx.config.simTimeStep;
         double requiredAngleSpeed = turnStep > 0.0 ? angleLeft / turnStep : 0.0;
         if (requiredAngleSpeed > ctx.config.angularSpeed) {

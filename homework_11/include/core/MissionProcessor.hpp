@@ -21,6 +21,11 @@ private:
     std::unique_ptr<IDroneState> droneState;
     DroneMotionState droneMotion;
     bool stateBootstrapped{};
+    bool releasePhaseActive{};
+    int releaseTargetIndex{-1};
+    bool hasPreviousTelemetry{};
+    dlink::Telemetry previousTelemetry{};
+    uint32_t lastProcessedTelemetryMs{};
     double acceleration{};
     bool targetLocked{};
     int lockedTargetIndex{-1};

@@ -27,6 +27,12 @@ static bool isInsideRadius(const Coord& point, const Coord& center, double radiu
     return distanceBetween(point, center) <= radius;
 }
 
+static double signedDistanceToReleaseBoundary(const Coord& point, const Coord& dropPoint, double releaseHeading) {
+    Coord axis{std::cos(releaseHeading), std::sin(releaseHeading)};
+    Coord delta = point - dropPoint;
+    return delta.x * axis.x + delta.y * axis.y;
+}
+
 static std::unique_ptr<IDroneState> bootstrapStateFromTelemetry(
     const dlink::Telemetry& telemetry,
     const DroneMotionState& droneMotion,
@@ -72,6 +78,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     Coord dronePosition{state.telemetry.x, state.telemetry.y};
     droneMotion.currentDir = state.telemetry.dir;
     droneMotion.currentSpeed = state.telemetry.speed;
+    const bool hasNewTelemetry = !hasPreviousTelemetry || state.telemetry.t_ms != lastProcessedTelemetryMs;
 
     AmmoParams ammo{};
     if (state.ammoReceived) {
@@ -120,6 +127,8 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
             returningFromManuver = false;
             maneuverTargetIndex = -1;
             droneMotion.currentTargetIndex = -1;
+            releasePhaseActive = false;
+            releaseTargetIndex = -1;
         }
     }
 
@@ -161,6 +170,10 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     if (best.targetIndex != maneuverTargetIndex) {
         returningFromManuver = false;
     }
+    if (releasePhaseActive && best.targetIndex != releaseTargetIndex) {
+        releasePhaseActive = false;
+        releaseTargetIndex = -1;
+    }
     if (isMoving && !best.needManeuver) {
         returningFromManuver = true;
     }
@@ -176,6 +189,8 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         lockedTargetIndex = best.targetIndex;
         candidateTargetIndex = best.targetIndex;
         candidateTargetStreak = 0;
+        releasePhaseActive = false;
+        releaseTargetIndex = -1;
     }
 
     decision.targetId = best.targetIndex;
@@ -198,6 +213,8 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         lockedTargetIndex = best.targetIndex;
         candidateTargetIndex = best.targetIndex;
         candidateTargetStreak = 0;
+        releasePhaseActive = false;
+        releaseTargetIndex = -1;
     } else {
         goal = best.dropPoint;
         if (!targetLocked && candidateTargetStreak >= 2) {
@@ -214,11 +231,29 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         candidateTargetStreak = 0;
     }
 
-    Coord deltaToGoal = goal - dronePosition;
-    if (distanceBetween(dronePosition, goal) > 0.0) {
-        droneMotion.desiredDir = std::atan2(deltaToGoal.y, deltaToGoal.x);
+    const double headingError = std::fabs(calculateAngleDifference(state.telemetry.dir, best.releaseHeading));
+    const bool releaseReady =
+        !headingToManeuver
+        && targetLocked
+        && lockedTargetIndex == best.targetIndex
+        && droneState->isMoving()
+        && std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5
+        && headingError <= best.releaseTurnThreshold;
+
+    if (releaseReady) {
+        releasePhaseActive = true;
+        releaseTargetIndex = best.targetIndex;
+    }
+
+    if (releasePhaseActive && releaseTargetIndex == best.targetIndex) {
+        droneMotion.desiredDir = best.releaseHeading;
     } else {
-        droneMotion.desiredDir = state.telemetry.dir;
+        Coord deltaToGoal = goal - dronePosition;
+        if (distanceBetween(dronePosition, goal) > 0.0) {
+            droneMotion.desiredDir = std::atan2(deltaToGoal.y, deltaToGoal.x);
+        } else {
+            droneMotion.desiredDir = state.telemetry.dir;
+        }
     }
 
     if (!stateBootstrapped) {
@@ -245,16 +280,28 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
 
     double angleError = calculateAngleDifference(state.telemetry.dir, droneMotion.desiredDir);
     decision.angleError = angleError;
-    const double headingError = std::fabs(calculateAngleDifference(state.telemetry.dir, best.releaseHeading));
 
     if (!state.dropDone
+        && releasePhaseActive
+        && releaseTargetIndex == best.targetIndex
         && ballistics.horizontalDistance > 0.0
-        && !headingToManeuver
-        && distanceToDropPoint <= config.drone.hitRadius
+        && hasNewTelemetry
+        && hasPreviousTelemetry
         && droneState->isMoving()
         && std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5
         && headingError <= best.releaseTurnThreshold) {
-        decision.shouldDrop = true;
+        Coord previousPosition{previousTelemetry.x, previousTelemetry.y};
+        double previousSignedDistance = signedDistanceToReleaseBoundary(previousPosition, best.dropPoint, best.releaseHeading);
+        double currentSignedDistance = signedDistanceToReleaseBoundary(dronePosition, best.dropPoint, best.releaseHeading);
+        if (previousSignedDistance < 0.0 && currentSignedDistance >= 0.0) {
+            decision.shouldDrop = true;
+        }
+    }
+
+    if (hasNewTelemetry) {
+        previousTelemetry = state.telemetry;
+        hasPreviousTelemetry = true;
+        lastProcessedTelemetryMs = state.telemetry.t_ms;
     }
 
     return decision;
