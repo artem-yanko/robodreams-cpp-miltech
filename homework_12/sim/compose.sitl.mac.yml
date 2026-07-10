@@ -1,0 +1,29 @@
+# Compose for MacOS host. It fixed networking issue with Docker Desktop for MacOS.
+services:
+  fc_sim:
+    platform: linux/amd64
+    build: .
+    container_name: fc_sim
+    environment:
+      VEHICLE: Rover
+      SPEEDUP: "1"
+      C2_HOST: "host.docker.internal"
+      C2_PORT: "14551"
+      LAT: "48.983498065911704"
+      LON: "37.82220625228142"
+      ALT: "95"
+      DIR: "90"
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - |
+        exec /ardupilot/Tools/autotest/sim_vehicle.py \
+          --vehicle "Rover" \
+          --no-rebuild \
+          --no-mavproxy \
+          --speedup "1" \
+          --custom-location="48.983498065911704,37.82220625228142,95,90" \
+          -A "--serial0=tcp:5760:wait --serial1=udpclient:host.docker.internal:14551"
+    ports:
+      - "5760:5760/tcp"
+    restart: unless-stopped
