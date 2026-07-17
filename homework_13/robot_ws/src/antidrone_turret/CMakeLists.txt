@@ -25,10 +25,14 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 ament_auto_add_executable(target_track_publisher_node src/target_track_publisher_node.cpp)
 ament_auto_add_executable(actuator_node src/actuator_node.cpp)
 ament_auto_add_executable(turret_controller_node src/turret_controller_node.cpp)
+ament_auto_add_executable(gimbal_driver_node src/gimbal_driver_node.cpp)
+ament_auto_add_executable(yaw_servo_driver_node src/yaw_servo_driver_node.cpp)
 
 target_include_directories(target_track_publisher_node PRIVATE include)
 target_include_directories(actuator_node PRIVATE include)
 target_include_directories(turret_controller_node PRIVATE include)
+target_include_directories(gimbal_driver_node PRIVATE include)
+target_include_directories(yaw_servo_driver_node PRIVATE include)
 
 rosidl_get_typesupport_target(cpp_typesupport_target
   ${PROJECT_NAME}
@@ -38,6 +42,8 @@ rosidl_get_typesupport_target(cpp_typesupport_target
 target_link_libraries(target_track_publisher_node "${cpp_typesupport_target}")
 target_link_libraries(actuator_node "${cpp_typesupport_target}")
 target_link_libraries(turret_controller_node "${cpp_typesupport_target}")
+target_link_libraries(gimbal_driver_node "${cpp_typesupport_target}")
+target_link_libraries(yaw_servo_driver_node "${cpp_typesupport_target}")
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
