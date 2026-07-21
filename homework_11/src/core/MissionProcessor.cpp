@@ -7,6 +7,7 @@
 #include "states/StateMoving.hpp"
 #include "states/StateStopped.hpp"
 #include "states/StateTurning.hpp"
+#include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
 
 #include <cmath>
@@ -14,7 +15,6 @@
 
 static const double SPEED_EPSILON = 1e-6;
 static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
-static const double TARGET_SWITCH_PREVENTION = 1.0;
 
 static double calculateDroneAcceleration(double attackSpeed, double accelerationPath) {
     if (accelerationPath <= 0.0) {
@@ -31,6 +31,40 @@ static double signedDistanceToReleaseBoundary(const Coord& point, const Coord& d
     Coord axis{std::cos(releaseHeading), std::sin(releaseHeading)};
     Coord delta = point - dropPoint;
     return delta.x * axis.x + delta.y * axis.y;
+}
+
+static double calculateReleasePredictionDt(const DroneConfig& config, uint32_t previousMs, uint32_t currentMs) {
+    if (currentMs > previousMs) {
+        return static_cast<double>(currentMs - previousMs) / 1000.0;
+    }
+
+    if (config.simTimeStep > 0.0) {
+        return config.simTimeStep;
+    }
+
+    if (config.physicsTimeStep > 0.0) {
+        return config.physicsTimeStep;
+    }
+
+    return 0.1;
+}
+
+static void clearLockedTarget(
+    int& lockedTargetIndex,
+    bool& releasePhaseActive,
+    int& releaseTargetIndex,
+    bool& hasPreviousReleaseTelemetry,
+    uint32_t& lastReleaseCheckTelemetryMs,
+    bool& returningFromManuver,
+    DroneMotionState& droneMotion
+) {
+    lockedTargetIndex = -1;
+    releasePhaseActive = false;
+    releaseTargetIndex = -1;
+    hasPreviousReleaseTelemetry = false;
+    lastReleaseCheckTelemetryMs = 0;
+    returningFromManuver = false;
+    droneMotion.currentTargetIndex = -1;
 }
 
 static std::unique_ptr<IDroneState> bootstrapStateFromTelemetry(
@@ -102,7 +136,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     const bool isAccelerating = droneState->isAccelerating();
 
     bool targetSelected = false;
-    if (targetLocked && lockedTargetIndex >= 0) {
+    if (lockedTargetIndex >= 0) {
         targetSelected = analyzer.evaluateTarget(
             best,
             state,
@@ -120,15 +154,15 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         );
 
         if (!targetSelected) {
-            targetLocked = false;
-            lockedTargetIndex = -1;
-            candidateTargetIndex = -1;
-            candidateTargetStreak = 0;
-            returningFromManuver = false;
-            maneuverTargetIndex = -1;
-            droneMotion.currentTargetIndex = -1;
-            releasePhaseActive = false;
-            releaseTargetIndex = -1;
+            clearLockedTarget(
+                lockedTargetIndex,
+                releasePhaseActive,
+                releaseTargetIndex,
+                hasPreviousReleaseTelemetry,
+                lastReleaseCheckTelemetryMs,
+                returningFromManuver,
+                droneMotion
+            );
         }
     }
 
@@ -153,26 +187,21 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         return decision;
     }
 
+    if (lockedTargetIndex < 0) {
+        lockedTargetIndex = best.targetIndex;
+        LOG("TARGET lock acquired: target=" << lockedTargetIndex);
+    }
+
     droneMotion.currentTargetIndex = best.targetIndex;
 
-    if (!targetLocked) {
-        if (best.targetIndex == candidateTargetIndex) {
-            ++candidateTargetStreak;
-        } else {
-            candidateTargetIndex = best.targetIndex;
-            candidateTargetStreak = 1;
-        }
-    } else {
-        candidateTargetIndex = lockedTargetIndex;
-        candidateTargetStreak = 0;
-    }
-
-    if (best.targetIndex != maneuverTargetIndex) {
-        returningFromManuver = false;
-    }
     if (releasePhaseActive && best.targetIndex != releaseTargetIndex) {
+        LOG("RELEASE phase reset: current target=" << best.targetIndex
+            << ", release target=" << releaseTargetIndex
+            << ", reason=target changed");
         releasePhaseActive = false;
         releaseTargetIndex = -1;
+        hasPreviousReleaseTelemetry = false;
+        lastReleaseCheckTelemetryMs = 0;
     }
     if (isMoving && !best.needManeuver) {
         returningFromManuver = true;
@@ -185,12 +214,10 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     if (atManeuverPoint) {
         returningFromManuver = true;
         best.needManeuver = false;
-        targetLocked = true;
-        lockedTargetIndex = best.targetIndex;
-        candidateTargetIndex = best.targetIndex;
-        candidateTargetStreak = 0;
         releasePhaseActive = false;
         releaseTargetIndex = -1;
+        hasPreviousReleaseTelemetry = false;
+        lastReleaseCheckTelemetryMs = 0;
     }
 
     decision.targetId = best.targetIndex;
@@ -212,41 +239,37 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     bool headingToManeuver = best.needManeuver && !atManeuverPoint;
     if (headingToManeuver) {
         goal = best.maneuverPoint;
-        maneuverTargetIndex = best.targetIndex;
-        targetLocked = true;
-        lockedTargetIndex = best.targetIndex;
-        candidateTargetIndex = best.targetIndex;
-        candidateTargetStreak = 0;
         releasePhaseActive = false;
         releaseTargetIndex = -1;
+        hasPreviousReleaseTelemetry = false;
+        lastReleaseCheckTelemetryMs = 0;
     } else {
         goal = best.dropPoint;
-        if (!targetLocked && candidateTargetStreak >= 2) {
-            targetLocked = true;
-            lockedTargetIndex = best.targetIndex;
-            candidateTargetStreak = 0;
-        }
-    }
-
-    if (!headingToManeuver && isMoving && !targetLocked && distanceToDropPoint <= ballistics.horizontalDistance + TARGET_SWITCH_PREVENTION) {
-        targetLocked = true;
-        lockedTargetIndex = best.targetIndex;
-        candidateTargetIndex = best.targetIndex;
-        candidateTargetStreak = 0;
     }
 
     const double headingError = std::fabs(calculateAngleDifference(state.telemetry.dir, best.releaseHeading));
     const bool releaseReady =
         !headingToManeuver
-        && targetLocked
         && lockedTargetIndex == best.targetIndex
         && droneState->isMoving()
         && std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5
         && headingError <= best.releaseTurnThreshold;
 
     if (releaseReady) {
+        if (!releasePhaseActive || releaseTargetIndex != best.targetIndex) {
+            LOG("RELEASE phase entered: target=" << best.targetIndex
+                << ", dropPoint=(" << best.dropPoint.x << ", " << best.dropPoint.y << ")"
+                << ", releaseHeading=" << best.releaseHeading
+                << ", headingError=" << headingError
+                << ", speed=" << state.telemetry.speed);
+        }
         releasePhaseActive = true;
         releaseTargetIndex = best.targetIndex;
+        if (!hasPreviousReleaseTelemetry) {
+            previousReleaseTelemetry = state.telemetry;
+            hasPreviousReleaseTelemetry = true;
+            lastReleaseCheckTelemetryMs = state.telemetry.t_ms;
+        }
     }
 
     if (releasePhaseActive && releaseTargetIndex == best.targetIndex) {
@@ -285,21 +308,89 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     double angleError = calculateAngleDifference(state.telemetry.dir, droneMotion.desiredDir);
     decision.angleError = angleError;
 
+    if (releasePhaseActive && !hasNewTelemetry) {
+        LOG("RELEASE waiting: target=" << best.targetIndex
+            << ", reason=no new telemetry"
+            << ", dropPoint=(" << best.dropPoint.x << ", " << best.dropPoint.y << ")"
+            << ", releaseHeading=" << best.releaseHeading);
+    }
+
+    const bool hasNewReleaseTelemetry =
+        releasePhaseActive
+        && releaseTargetIndex == best.targetIndex
+        && state.telemetry.t_ms != lastReleaseCheckTelemetryMs;
+
     if (!state.dropDone
         && releasePhaseActive
         && releaseTargetIndex == best.targetIndex
         && ballistics.horizontalDistance > 0.0
-        && hasNewTelemetry
-        && hasPreviousTelemetry
-        && droneState->isMoving()
-        && std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5
-        && headingError <= best.releaseTurnThreshold) {
-        Coord previousPosition{previousTelemetry.x, previousTelemetry.y};
+        && hasPreviousReleaseTelemetry
+        && hasNewReleaseTelemetry) {
+        const bool movingForRelease = droneState->isMoving();
+        const bool atAttackSpeedForRelease =
+            std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5;
+        const bool headingOkForRelease = headingError <= best.releaseTurnThreshold;
+        Coord previousPosition{previousReleaseTelemetry.x, previousReleaseTelemetry.y};
         double previousSignedDistance = signedDistanceToReleaseBoundary(previousPosition, best.dropPoint, best.releaseHeading);
         double currentSignedDistance = signedDistanceToReleaseBoundary(dronePosition, best.dropPoint, best.releaseHeading);
-        if (previousSignedDistance < 0.0 && currentSignedDistance >= 0.0) {
+        const double predictionDt = calculateReleasePredictionDt(
+            config.drone,
+            previousReleaseTelemetry.t_ms,
+            state.telemetry.t_ms
+        );
+        Coord predictedNextPosition{
+            dronePosition.x + std::cos(state.telemetry.dir) * state.telemetry.speed * predictionDt,
+            dronePosition.y + std::sin(state.telemetry.dir) * state.telemetry.speed * predictionDt
+        };
+        double nextSignedDistance = signedDistanceToReleaseBoundary(predictedNextPosition, best.dropPoint, best.releaseHeading);
+        LOG("RELEASE check: target=" << best.targetIndex
+            << ", state=" << droneState->name()
+            << ", moving=" << movingForRelease
+            << ", speed=" << state.telemetry.speed
+            << ", attackSpeed=" << config.drone.attackSpeed
+            << ", headingError=" << headingError
+            << ", releaseTurnThreshold=" << best.releaseTurnThreshold
+            << ", previousSignedDistance=" << previousSignedDistance
+            << ", currentSignedDistance=" << currentSignedDistance
+            << ", nextSignedDistance=" << nextSignedDistance);
+        DEBUG("RELEASE boundary: target=" << best.targetIndex
+              << ", previous=" << previousSignedDistance
+              << ", current=" << currentSignedDistance
+              << ", next=" << nextSignedDistance);
+        if ((previousSignedDistance < 0.0 && currentSignedDistance >= 0.0)
+            || (currentSignedDistance < 0.0 && nextSignedDistance >= 0.0)) {
+            if (!movingForRelease || !atAttackSpeedForRelease || !headingOkForRelease) {
+                LOG("RELEASE boundary crossed with soft guard miss: target=" << best.targetIndex
+                    << ", moving=" << movingForRelease
+                    << ", atAttackSpeed=" << atAttackSpeedForRelease
+                    << ", headingOk=" << headingOkForRelease);
+            }
+            if (currentSignedDistance < 0.0 && nextSignedDistance >= 0.0) {
+                LOG("RELEASE predictive trigger: target=" << best.targetIndex
+                    << ", currentSignedDistance=" << currentSignedDistance
+                    << ", nextSignedDistance=" << nextSignedDistance
+                    << ", predictionDt=" << predictionDt);
+            }
             decision.shouldDrop = true;
+        } else if (currentSignedDistance >= 0.0) {
+            LOG("TARGET abort: target=" << best.targetIndex
+                << ", reason=passed release boundary without drop");
+            clearLockedTarget(
+                lockedTargetIndex,
+                releasePhaseActive,
+                releaseTargetIndex,
+                hasPreviousReleaseTelemetry,
+                lastReleaseCheckTelemetryMs,
+                returningFromManuver,
+                droneMotion
+            );
         }
+    }
+
+    if (hasNewReleaseTelemetry) {
+        previousReleaseTelemetry = state.telemetry;
+        hasPreviousReleaseTelemetry = true;
+        lastReleaseCheckTelemetryMs = state.telemetry.t_ms;
     }
 
     if (hasNewTelemetry) {

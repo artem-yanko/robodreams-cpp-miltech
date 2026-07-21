@@ -10,6 +10,8 @@
 #include <thread>
 #include <chrono>
 
+static constexpr auto DROP_PULSE_DURATION = std::chrono::milliseconds(300);
+
 void GpioController::cleanup() {
     if (startRequest != nullptr) {
         gpiod_line_request_release(startRequest);
@@ -180,8 +182,14 @@ bool GpioController::pulseDrop() {
             return false;
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(80));
-        return writeSimLine(dropLine, 0);
+        LOG("DROP line HIGH: sim_gpio" << dropLine);
+        std::this_thread::sleep_for(DROP_PULSE_DURATION);
+        if (!writeSimLine(dropLine, 0)) {
+            return false;
+        }
+
+        LOG("DROP line LOW: sim_gpio" << dropLine);
+        return true;
     }
 
     if (dropRequest == nullptr) {
@@ -192,7 +200,13 @@ bool GpioController::pulseDrop() {
         return false;
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(80));
+    LOG("DROP line HIGH: gpio" << dropLine);
+    std::this_thread::sleep_for(DROP_PULSE_DURATION);
 
-    return gpiod_line_request_set_value(dropRequest, dropLine, GPIOD_LINE_VALUE_INACTIVE) == 0;
+    if (gpiod_line_request_set_value(dropRequest, dropLine, GPIOD_LINE_VALUE_INACTIVE) < 0) {
+        return false;
+    }
+
+    LOG("DROP line LOW: gpio" << dropLine);
+    return true;
 }

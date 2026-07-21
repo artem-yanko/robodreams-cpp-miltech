@@ -39,9 +39,6 @@ static void logTelemetry(const MissionState& state) {
 
 static void logTarget(const MissionState& state) {
     (void)state;
-    DEBUG("TARGET id=" << static_cast<int>(state.lastTargetUpdate.id)
-          << ", pos=(" << state.lastTargetUpdate.x << ", " << state.lastTargetUpdate.y << ")"
-          << ", knownTargets=" << state.targets.size());
 }
 
 static void logDecision(const MissionDecision& decision) {

@@ -26,11 +26,10 @@ private:
     bool hasPreviousTelemetry{};
     dlink::Telemetry previousTelemetry{};
     uint32_t lastProcessedTelemetryMs{};
+    bool hasPreviousReleaseTelemetry{};
+    dlink::Telemetry previousReleaseTelemetry{};
+    uint32_t lastReleaseCheckTelemetryMs{};
     double acceleration{};
-    bool targetLocked{};
     int lockedTargetIndex{-1};
-    int candidateTargetIndex{-1};
-    int candidateTargetStreak{};
     bool returningFromManuver{};
-    int maneuverTargetIndex{-1};
 };
