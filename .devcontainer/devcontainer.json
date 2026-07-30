@@ -29,8 +29,18 @@
   ],
 
   // initialize створює host-side директорії для mounts до старту container-а.
+  // Запуск через bash робить команду стійкою до копіювання без executable bit.
   "initializeCommand": [
+    "bash",
     ".devcontainer/scripts/initialize"
+  ],
+
+  // ROS 2 CLI daemon синхронізується з поточним CycloneDDS profile:
+  // прибрати завислий daemon, стартувати daemon заново і перевірити,
+  // що CLI graph-команди відповідають.
+  "postStartCommand": [
+    "bash",
+    ".devcontainer/scripts/post-start"
   ],
 
   // host network спрощує SSH/debug сценарії для занять з target-пристроями.
@@ -39,8 +49,11 @@
   // ulimit core=-1 дозволяє процесам у контейнері створювати core dump.
   // Сам шлях/формат core-файла все одно визначає host kernel через
   // /proc/sys/kernel/core_pattern; у WSL це налаштовується окремо на host.
+  // shm-size=2g дає достатній shared memory budget для iceoryx demo 5.5
+  // з fixed-size payload до 100 MB.
   "runArgs": [
     "--network=host",
+    "--shm-size=2g",
     "--cap-add=SYS_PTRACE",
     "--security-opt=seccomp=unconfined",
     "--ulimit=core=-1",
@@ -62,10 +75,11 @@
       ],
       "settings": {
         // clangd читає build/debug/compile_commands.json з debug preset.
+        // clang-tidy конфіг лишається в репозиторії, але автоматичний запуск
+        // через clangd буде увімкнено пізніше, після заняття 2.6.
         "clangd.path": "/usr/bin/clangd",
         "clangd.arguments": [
           "--compile-commands-dir=build/debug",
-          "--clang-tidy",
           "--background-index"
         ],
         "clangd.restartAfterCrash": true,
