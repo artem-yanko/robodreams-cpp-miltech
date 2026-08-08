@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>homework_14_solution</name>
+  <version>0.1.0</version>
+  <description>Student solution nodes for Homework 14 underground exploration.</description>
+
+  <maintainer email="robot-dreams@example.com">robot_dreams</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>underground_world</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
