@@ -29,8 +29,18 @@
   ],
 
   // initialize створює host-side директорії для mounts до старту container-а.
+  // Запуск через bash робить команду стійкою до копіювання без executable bit.
   "initializeCommand": [
+    "bash",
     ".devcontainer/scripts/initialize"
+  ],
+
+  // ROS 2 CLI daemon синхронізується з поточним CycloneDDS profile:
+  // прибрати завислий daemon, стартувати daemon заново і перевірити,
+  // що CLI graph-команди відповідають.
+  "postStartCommand": [
+    "bash",
+    ".devcontainer/scripts/post-start"
   ],
 
   // host network спрощує SSH/debug сценарії для занять з target-пристроями.
@@ -62,10 +72,11 @@
       ],
       "settings": {
         // clangd читає build/debug/compile_commands.json з debug preset.
+        // clang-tidy конфіг лишається в репозиторії, але автоматичний запуск
+        // через clangd буде увімкнено пізніше, після заняття 2.6.
         "clangd.path": "/usr/bin/clangd",
         "clangd.arguments": [
           "--compile-commands-dir=build/debug",
-          "--clang-tidy",
           "--background-index"
         ],
         "clangd.restartAfterCrash": true,
