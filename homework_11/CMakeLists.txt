@@ -33,6 +33,14 @@ add_library(hw11_math_utils src/utils/math_utils.cpp)
 target_include_directories(hw11_math_utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_compile_options(hw11_math_utils PRIVATE -Wall -Wextra -pedantic)
 
+add_library(hw11_simulation_recorder src/simulation/SimulationRecorder.cpp)
+target_include_directories(hw11_simulation_recorder PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(hw11_simulation_recorder PRIVATE -Wall -Wextra -pedantic)
+
+add_library(hw11_result_publisher src/publishing/ResultPublisher.cpp)
+target_include_directories(hw11_result_publisher PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(hw11_result_publisher PRIVATE -Wall -Wextra -pedantic)
+
 add_library(hw11_states
     src/states/StateStopped.cpp
     src/states/StateTurning.cpp
@@ -62,6 +70,6 @@ target_compile_options(hw11_component_factory PRIVATE -Wall -Wextra -pedantic)
 
 add_executable(homework_11_app src/main.cpp)
 target_include_directories(homework_11_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(homework_11_app PRIVATE hw11_component_factory hw11_drone_link_adapter hw11_gpio_controller hw11_json_config_loader hw11_table_solver hw11_mission_processor)
+target_link_libraries(homework_11_app PRIVATE hw11_component_factory hw11_drone_link_adapter hw11_gpio_controller hw11_json_config_loader hw11_table_solver hw11_mission_processor hw11_simulation_recorder hw11_result_publisher)
 target_compile_definitions(homework_11_app PRIVATE DEFAULT_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_options(homework_11_app PRIVATE -Wall -Wextra -pedantic)

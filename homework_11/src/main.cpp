@@ -3,13 +3,43 @@
 #include "domain/mission_state.hpp"
 #include "domain/runtime_config.hpp"
 #include "interfaces/IBallisticSolver.hpp"
+#include "publishing/ResultPublisher.hpp"
+#include "simulation/SimulationRecorder.hpp"
 #include "utils/logger.hpp"
 
 #include <chrono>
+#include <csignal>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <thread>
+
+static volatile std::sig_atomic_t stopRequested = 0;
+
+static void handleSignal(int) {
+    stopRequested = 1;
+}
+
+static bool parseBoolArg(const char* value) {
+    return std::strcmp(value, "true") == 0;
+}
+
+static std::string simulationOutputPath(const RuntimeConfig& config) {
+    std::filesystem::path path(config.outputDir);
+    path /= config.testId;
+    path /= "simulation.json";
+    return path.string();
+}
+
+static PublishReport publishSimulation(const RuntimeConfig& config, const std::string& simulationPath) {
+    PublishConfig publishConfig{};
+    publishConfig.studentId = config.studentId;
+    publishConfig.testId = config.testId;
+
+    ResultPublisher publisher(publishConfig);
+    return publisher.publishFile(simulationPath);
+}
 
 static void logAmmo(const MissionState& state) {
     LOG("AMMO name=" << state.ammo.name
@@ -111,6 +141,16 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
             config.startLine = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (std::strcmp(argv[i], "--drop-line") == 0 && i + 1 < argc) {
             config.dropLine = static_cast<unsigned>(std::stoul(argv[++i]));
+        } else if (std::strcmp(argv[i], "--test-id") == 0 && i + 1 < argc) {
+            config.testId = argv[++i];
+        } else if (std::strcmp(argv[i], "--output-dir") == 0 && i + 1 < argc) {
+            config.outputDir = argv[++i];
+        } else if (std::strcmp(argv[i], "--student-id") == 0 && i + 1 < argc) {
+            config.studentId = argv[++i];
+        } else if (std::strcmp(argv[i], "--publish") == 0 && i + 1 < argc) {
+            config.publish = parseBoolArg(argv[++i]);
+        } else if (std::strcmp(argv[i], "--stop-after-drop") == 0 && i + 1 < argc) {
+            config.stopAfterDrop = parseBoolArg(argv[++i]);
         }
     }
 
@@ -118,6 +158,9 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
 }
 
 int main(int argc, char* argv[]) {
+    std::signal(SIGINT, handleSignal);
+    std::signal(SIGTERM, handleSignal);
+
     RuntimeConfig config = parseArgs(argc, argv);
     MissionState state{};
     std::vector<AmmoParams> ammoList;
@@ -178,12 +221,35 @@ int main(int argc, char* argv[]) {
     bool ammoLogged = false;
     bool droneCfgLogged = false;
     bool runtimeConfigApplied = false;
+    bool simulationFinalized = false;
     uint32_t lastTelemetryLogMs = 0;
     std::chrono::steady_clock::time_point lastControlSend = std::chrono::steady_clock::now();
     const auto controlPeriod = std::chrono::milliseconds(20);
     std::unique_ptr<MissionProcessor> missionProcessor;
+    const std::string outputPath = simulationOutputPath(config);
+    SimulationRecorder recorder(outputPath);
 
-    while (true) {
+    const auto finalizeSimulation = [&](bool allowPublish) {
+        if (simulationFinalized) {
+            return;
+        }
+
+        simulationFinalized = true;
+        if (!recorder.write()) {
+            ERROR_LOG("Failed to write simulation output");
+            return;
+        }
+
+        LOG("Simulation written to " << recorder.outputPath());
+        if (config.publish && allowPublish) {
+            PublishReport report = publishSimulation(config, recorder.outputPath());
+            LOG("Publish report: " << report.testId
+                << " -> " << report.status
+                << " attempts=" << report.attempts);
+        }
+    };
+
+    while (!stopRequested) {
         int packets = link->pollIncoming(state);
         if (packets < 0) {
             ERROR_LOG("UART polling failed");
@@ -252,6 +318,7 @@ int main(int argc, char* argv[]) {
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         if (missionProcessor && now - lastControlSend >= controlPeriod) {
             MissionDecision decision = missionProcessor->update(state);
+            recorder.record(state, decision);
             logDecision(decision);
             if (!link->sendControl(decision.accel, decision.turnRate)) {
                 ERROR_LOG("Failed to send CONTROL");
@@ -264,6 +331,10 @@ int main(int argc, char* argv[]) {
                     state.dropDone = true;
                     logImpactEstimate(decision);
                     LOG("DROP triggered");
+                    finalizeSimulation(true);
+                    if (config.stopAfterDrop) {
+                        return 0;
+                    }
                 }
             }
 
@@ -272,4 +343,8 @@ int main(int argc, char* argv[]) {
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+
+    finalizeSimulation(false);
+    LOG("Stop requested");
+    return 0;
 }
