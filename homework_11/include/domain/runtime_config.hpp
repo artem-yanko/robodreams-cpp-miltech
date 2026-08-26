@@ -16,7 +16,12 @@ struct RuntimeConfig {
     std::string configPath{};
     std::string ammoPath{};
     std::string ballisticTablePath{};
+    std::string outputDir{"results"};
+    std::string testId{"T01"};
+    std::string studentId{"1035"};
     unsigned startLine{24};
     unsigned dropLine{23};
+    bool publish{};
+    bool stopAfterDrop{};
     DroneConfig drone{};
 };

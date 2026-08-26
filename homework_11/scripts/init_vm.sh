@@ -35,7 +35,7 @@ else
 fi
 
 echo "[4/6] Making checker binaries executable"
-find "${REPO_DIR}/homework_11/checker" -maxdepth 1 -type f -name 'checker_*' -exec chmod +x {} \;
+find "${REPO_DIR}/homework_11/data/checker" -maxdepth 1 -type f -name 'checker_*' -exec chmod +x {} \;
 
 echo "[5/6] Printing useful versions"
 cmake --version | head -n 1
