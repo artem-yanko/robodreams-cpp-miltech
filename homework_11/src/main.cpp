@@ -3,6 +3,7 @@
 #include "domain/mission_state.hpp"
 #include "domain/runtime_config.hpp"
 #include "interfaces/IBallisticSolver.hpp"
+#include "mavlink/mavlink_gateway.hpp"
 #include "publishing/ResultPublisher.hpp"
 #include "simulation/SimulationRecorder.hpp"
 #include "utils/logger.hpp"
@@ -151,6 +152,15 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
             config.publish = parseBoolArg(argv[++i]);
         } else if (std::strcmp(argv[i], "--stop-after-drop") == 0 && i + 1 < argc) {
             config.stopAfterDrop = parseBoolArg(argv[++i]);
+        } else if (std::strcmp(argv[i], "--mavlink") == 0) {
+            config.mavlinkEnabled = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                config.mavlinkEnabled = parseBoolArg(argv[++i]);
+            }
+        } else if (std::strcmp(argv[i], "--mavlink-host") == 0 && i + 1 < argc) {
+            config.mavlinkHost = argv[++i];
+        } else if (std::strcmp(argv[i], "--mavlink-port") == 0 && i + 1 < argc) {
+            config.mavlinkPort = static_cast<unsigned>(std::stoul(argv[++i]));
         }
     }
 
@@ -228,6 +238,14 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<MissionProcessor> missionProcessor;
     const std::string outputPath = simulationOutputPath(config);
     SimulationRecorder recorder(outputPath);
+    MavlinkGateway mavlink;
+
+    if (config.mavlinkEnabled) {
+        if (!mavlink.init(config.mavlinkHost, static_cast<uint16_t>(config.mavlinkPort))) {
+            ERROR_LOG("Failed to initialize MAVLink UDP");
+            return 1;
+        }
+    }
 
     const auto finalizeSimulation = [&](bool allowPublish) {
         if (simulationFinalized) {
@@ -315,6 +333,9 @@ int main(int argc, char* argv[]) {
             state.targetUpdateReceived = false;
         }
 
+        mavlink.updateTelemetry(state);
+        mavlink.pollAck();
+
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         if (missionProcessor && now - lastControlSend >= controlPeriod) {
             MissionDecision decision = missionProcessor->update(state);
@@ -331,6 +352,7 @@ int main(int argc, char* argv[]) {
                     state.dropDone = true;
                     logImpactEstimate(decision);
                     LOG("DROP triggered");
+                    mavlink.startDropCommand(state, decision);
                     finalizeSimulation(true);
                     if (config.stopAfterDrop) {
                         return 0;

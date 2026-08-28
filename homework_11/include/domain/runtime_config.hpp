@@ -19,9 +19,12 @@ struct RuntimeConfig {
     std::string outputDir{"results"};
     std::string testId{"T01"};
     std::string studentId{"1035"};
+    std::string mavlinkHost{"127.0.0.1"};
     unsigned startLine{24};
     unsigned dropLine{23};
+    unsigned mavlinkPort{14550};
     bool publish{};
     bool stopAfterDrop{};
+    bool mavlinkEnabled{};
     DroneConfig drone{};
 };
