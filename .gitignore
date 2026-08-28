@@ -2,6 +2,7 @@
 build/
 build-*/
 out/
+c_library_v2/
 
 # CMake генерує ці файли при in-source або ручних локальних збірках.
 CMakeCache.txt
