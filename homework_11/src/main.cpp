@@ -3,6 +3,7 @@
 #include "domain/mission_state.hpp"
 #include "domain/runtime_config.hpp"
 #include "interfaces/IBallisticSolver.hpp"
+#include "mavlink/mavlink_gateway.hpp"
 #include "utils/logger.hpp"
 
 #include <chrono>
@@ -74,6 +75,10 @@ static void applyDroneCfg(DroneConfig& drone, const MissionState& state) {
     drone.timeScale = state.droneCfg.timeScale;
 }
 
+static bool parseBoolArg(const char* value) {
+    return std::strcmp(value, "true") == 0;
+}
+
 static RuntimeConfig parseArgs(int argc, char* argv[]) {
     RuntimeConfig config{};
     config.configPath = DEFAULT_CONFIG_DIR "/src/config.json";
@@ -111,6 +116,15 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
             config.startLine = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (std::strcmp(argv[i], "--drop-line") == 0 && i + 1 < argc) {
             config.dropLine = static_cast<unsigned>(std::stoul(argv[++i]));
+        } else if (std::strcmp(argv[i], "--mavlink") == 0) {
+            config.mavlinkEnabled = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                config.mavlinkEnabled = parseBoolArg(argv[++i]);
+            }
+        } else if (std::strcmp(argv[i], "--mavlink-host") == 0 && i + 1 < argc) {
+            config.mavlinkHost = argv[++i];
+        } else if (std::strcmp(argv[i], "--mavlink-port") == 0 && i + 1 < argc) {
+            config.mavlinkPort = static_cast<unsigned>(std::stoul(argv[++i]));
         }
     }
 
@@ -182,6 +196,14 @@ int main(int argc, char* argv[]) {
     std::chrono::steady_clock::time_point lastControlSend = std::chrono::steady_clock::now();
     const auto controlPeriod = std::chrono::milliseconds(20);
     std::unique_ptr<MissionProcessor> missionProcessor;
+    MavlinkGateway mavlink;
+
+    if (config.mavlinkEnabled) {
+        if (!mavlink.init(config.mavlinkHost, static_cast<uint16_t>(config.mavlinkPort))) {
+            ERROR_LOG("Failed to initialize MAVLink UDP");
+            return 1;
+        }
+    }
 
     while (true) {
         int packets = link->pollIncoming(state);
@@ -249,6 +271,9 @@ int main(int argc, char* argv[]) {
             state.targetUpdateReceived = false;
         }
 
+        mavlink.updateTelemetry(state);
+        mavlink.pollAck();
+
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         if (missionProcessor && now - lastControlSend >= controlPeriod) {
             MissionDecision decision = missionProcessor->update(state);
@@ -264,6 +289,7 @@ int main(int argc, char* argv[]) {
                     state.dropDone = true;
                     logImpactEstimate(decision);
                     LOG("DROP triggered");
+                    mavlink.startDropCommand(state, decision);
                 }
             }
 

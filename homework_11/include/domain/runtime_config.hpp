@@ -16,7 +16,10 @@ struct RuntimeConfig {
     std::string configPath{};
     std::string ammoPath{};
     std::string ballisticTablePath{};
+    std::string mavlinkHost{"127.0.0.1"};
     unsigned startLine{24};
     unsigned dropLine{23};
+    unsigned mavlinkPort{14550};
+    bool mavlinkEnabled{};
     DroneConfig drone{};
 };
