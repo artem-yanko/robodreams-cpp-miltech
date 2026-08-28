@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+elf = "build/homework_17.elf"
+firmware = "build/homework_17.bin"
