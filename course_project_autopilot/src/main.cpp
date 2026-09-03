@@ -345,8 +345,14 @@ int main(int argc, char* argv[]) {
             state.targetUpdateReceived = false;
         }
 
+        mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
         mavlink.updateTelemetry(state);
-        mavlink.pollAck();
+        MavlinkEvents mavlinkEvents = mavlink.poll();
+        if (mavlinkEvents.modeChangeRequested) {
+            autopilot.setOperatorMode(mavlinkEvents.requestedMode);
+            mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
+            mavlink.sendModeParam();
+        }
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         if (missionProcessor && autopilot.missionEnabled() && now - lastControlSend >= controlPeriod) {
