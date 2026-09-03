@@ -36,6 +36,7 @@ private:
 
     static GeoPoint localToGeo(double x, double y);
     static uint16_t headingCentidegrees(double yawRad);
+    static float headingRadians(double yawRad);
 
     bool sendMessage(const mavlink_message_t& message);
     void sendHeartbeat();

@@ -181,12 +181,26 @@ MavlinkGateway::GeoPoint MavlinkGateway::localToGeo(double x, double y) {
 }
 
 uint16_t MavlinkGateway::headingCentidegrees(double yawRad) {
-    double degrees = std::fmod(yawRad * RAD_TO_DEG, 360.0);
+    // Simulator direction uses math angles: 0 rad = East, pi/2 = North.
+    // MAVLink heading uses compass angles: 0 deg = North, 90 deg = East.
+    double degrees = std::fmod(90.0 - yawRad * RAD_TO_DEG, 360.0);
     if (degrees < 0.0) {
         degrees += 360.0;
     }
 
     return static_cast<uint16_t>(std::llround(degrees * 100.0)) % 36000;
+}
+
+float MavlinkGateway::headingRadians(double yawRad) {
+    double radians = std::fmod((PI / 2.0) - yawRad, 2.0 * PI);
+    if (radians > PI) {
+        radians -= 2.0 * PI;
+    }
+    if (radians < -PI) {
+        radians += 2.0 * PI;
+    }
+
+    return static_cast<float>(radians);
 }
 
 bool MavlinkGateway::sendMessage(const mavlink_message_t& message) {
@@ -248,7 +262,7 @@ void MavlinkGateway::sendAttitude(const MissionState& state) {
         state.telemetry.t_ms,
         0.0f,
         0.0f,
-        state.telemetry.dir,
+        headingRadians(state.telemetry.dir),
         0.0f,
         0.0f,
         0.0f

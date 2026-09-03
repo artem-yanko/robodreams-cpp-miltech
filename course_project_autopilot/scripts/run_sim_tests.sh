@@ -12,6 +12,10 @@ SIM_BANK="${SIM_BANK:-/tmp/cpa-sim-bank}"
 OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/course_project_autopilot/results}"
 STUDENT_ID="${STUDENT_ID:-1035}"
 PUBLISH="${PUBLISH:-false}"
+DEBUG_AUTO="${DEBUG_AUTO:-true}"
+MAVLINK="${MAVLINK:-false}"
+MAVLINK_HOST="${MAVLINK_HOST:-192.168.56.1}"
+MAVLINK_PORT="${MAVLINK_PORT:-14550}"
 TEST_TIMEOUT_SEC="${TEST_TIMEOUT_SEC:-90}"
 SOCAT_BIN="${SOCAT_BIN:-socat}"
 
@@ -30,6 +34,10 @@ usage() {
     echo "  OUTPUT_DIR=${OUTPUT_DIR}"
     echo "  STUDENT_ID=${STUDENT_ID}"
     echo "  PUBLISH=${PUBLISH}"
+    echo "  DEBUG_AUTO=${DEBUG_AUTO}"
+    echo "  MAVLINK=${MAVLINK}"
+    echo "  MAVLINK_HOST=${MAVLINK_HOST}"
+    echo "  MAVLINK_PORT=${MAVLINK_PORT}"
     echo "  SOCAT_BIN=${SOCAT_BIN}"
 }
 
@@ -106,16 +114,31 @@ for test_id in "${TESTS[@]}"; do
     fi
 
     echo "[${test_id}] starting app"
-    set +e
-    timeout "${TEST_TIMEOUT_SEC}" "${APP_BIN}" \
-        --sim \
-        --uart "${UART_DEVICE}" \
-        --sim-bank "${SIM_BANK}" \
-        --test-id "${test_id}" \
-        --output-dir "${OUTPUT_DIR}" \
-        --student-id "${STUDENT_ID}" \
-        --publish "${PUBLISH}" \
+    app_args=(
+        --sim
+        --uart "${UART_DEVICE}"
+        --sim-bank "${SIM_BANK}"
+        --test-id "${test_id}"
+        --output-dir "${OUTPUT_DIR}"
+        --student-id "${STUDENT_ID}"
+        --publish "${PUBLISH}"
         --stop-after-drop true
+    )
+
+    if [[ "${DEBUG_AUTO}" == "true" ]]; then
+        app_args+=(--debug-auto)
+    fi
+
+    if [[ "${MAVLINK}" == "true" ]]; then
+        app_args+=(
+            --mavlink true
+            --mavlink-host "${MAVLINK_HOST}"
+            --mavlink-port "${MAVLINK_PORT}"
+        )
+    fi
+
+    set +e
+    timeout "${TEST_TIMEOUT_SEC}" "${APP_BIN}" "${app_args[@]}"
     app_status=$?
     set -e
 
