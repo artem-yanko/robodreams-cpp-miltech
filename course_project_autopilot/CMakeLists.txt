@@ -73,6 +73,16 @@ target_include_directories(cpa_mavlink_gateway SYSTEM PUBLIC ${CMAKE_SOURCE_DIR}
 target_link_libraries(cpa_mavlink_gateway PUBLIC cpa_mission_state cpa_udp_socket)
 target_compile_options(cpa_mavlink_gateway PRIVATE -Wall -Wextra -pedantic)
 
+add_library(cpa_autopilot
+    src/autopilot/AutopilotController.cpp
+    src/autopilot/OperatorMode.cpp
+    src/autopilot/ManualState.cpp
+    src/autopilot/AutoMissionState.cpp
+    src/autopilot/FailsafeState.cpp
+    src/autopilot/MissionCompleteState.cpp)
+target_include_directories(cpa_autopilot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(cpa_autopilot PRIVATE -Wall -Wextra -pedantic)
+
 add_library(cpa_component_factory src/core/ComponentFactory.cpp)
 target_include_directories(cpa_component_factory PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(cpa_component_factory PUBLIC cpa_drone_link_adapter cpa_gpio_controller cpa_json_config_loader cpa_table_solver cpa_analytical_solver cpa_mission_processor)
@@ -80,6 +90,6 @@ target_compile_options(cpa_component_factory PRIVATE -Wall -Wextra -pedantic)
 
 add_executable(course_project_autopilot_app src/main.cpp)
 target_include_directories(course_project_autopilot_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(course_project_autopilot_app PRIVATE cpa_component_factory cpa_drone_link_adapter cpa_gpio_controller cpa_json_config_loader cpa_table_solver cpa_mission_processor cpa_simulation_recorder cpa_result_publisher cpa_mavlink_gateway)
+target_link_libraries(course_project_autopilot_app PRIVATE cpa_component_factory cpa_drone_link_adapter cpa_gpio_controller cpa_json_config_loader cpa_table_solver cpa_mission_processor cpa_simulation_recorder cpa_result_publisher cpa_mavlink_gateway cpa_autopilot)
 target_compile_definitions(course_project_autopilot_app PRIVATE DEFAULT_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_options(course_project_autopilot_app PRIVATE -Wall -Wextra -pedantic)

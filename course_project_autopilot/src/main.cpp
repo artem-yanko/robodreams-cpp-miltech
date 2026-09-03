@@ -1,3 +1,5 @@
+#include "autopilot/AutopilotController.hpp"
+#include "autopilot/OperatorMode.hpp"
 #include "core/ComponentFactory.hpp"
 #include "core/MissionProcessor.hpp"
 #include "domain/mission_state.hpp"
@@ -152,6 +154,8 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
             config.publish = parseBoolArg(argv[++i]);
         } else if (std::strcmp(argv[i], "--stop-after-drop") == 0 && i + 1 < argc) {
             config.stopAfterDrop = parseBoolArg(argv[++i]);
+        } else if (std::strcmp(argv[i], "--debug-auto") == 0) {
+            config.debugAuto = true;
         } else if (std::strcmp(argv[i], "--mavlink") == 0) {
             config.mavlinkEnabled = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -239,6 +243,14 @@ int main(int argc, char* argv[]) {
     const std::string outputPath = simulationOutputPath(config);
     SimulationRecorder recorder(outputPath);
     MavlinkGateway mavlink;
+    AutopilotController autopilot;
+
+    LOG("Autopilot startup mode: " << operatorModeName(autopilot.operatorMode())
+        << ", state=" << autopilot.stateName());
+    if (config.debugAuto) {
+        LOG("Debug auto mode requested");
+        autopilot.setOperatorMode(OperatorMode::Auto);
+    }
 
     if (config.mavlinkEnabled) {
         if (!mavlink.init(config.mavlinkHost, static_cast<uint16_t>(config.mavlinkPort))) {
@@ -337,7 +349,7 @@ int main(int argc, char* argv[]) {
         mavlink.pollAck();
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-        if (missionProcessor && now - lastControlSend >= controlPeriod) {
+        if (missionProcessor && autopilot.missionEnabled() && now - lastControlSend >= controlPeriod) {
             MissionDecision decision = missionProcessor->update(state);
             recorder.record(state, decision);
             logDecision(decision);
@@ -345,7 +357,7 @@ int main(int argc, char* argv[]) {
                 ERROR_LOG("Failed to send CONTROL");
             }
 
-            if (decision.shouldDrop && !state.dropDone) {
+            if (decision.shouldDrop && autopilot.dropAllowed() && !state.dropDone) {
                 if (!gpio->pulseDrop()) {
                     ERROR_LOG("Failed to pulse DROP line");
                 } else {

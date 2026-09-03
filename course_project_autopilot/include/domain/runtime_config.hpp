@@ -26,5 +26,6 @@ struct RuntimeConfig {
     bool publish{};
     bool stopAfterDrop{};
     bool mavlinkEnabled{};
+    bool debugAuto{};
     DroneConfig drone{};
 };
