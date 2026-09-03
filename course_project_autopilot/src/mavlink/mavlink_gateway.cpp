@@ -493,3 +493,24 @@ void MavlinkGateway::sendModeParam() {
     );
     sendMessage(message);
 }
+
+void MavlinkGateway::sendStatusText(uint8_t severity, const std::string& text) {
+    if (!initialized) {
+        return;
+    }
+
+    char buffer[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN]{};
+    std::strncpy(buffer, text.c_str(), sizeof(buffer) - 1);
+
+    mavlink_message_t message{};
+    mavlink_msg_statustext_pack(
+        SYSTEM_ID,
+        COMPONENT_ID,
+        &message,
+        severity,
+        buffer,
+        0,
+        0
+    );
+    sendMessage(message);
+}

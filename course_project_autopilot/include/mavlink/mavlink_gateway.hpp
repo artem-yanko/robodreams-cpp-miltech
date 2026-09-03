@@ -26,6 +26,7 @@ public:
     void startDropCommand(const MissionState& state, const MissionDecision& decision);
     MavlinkEvents poll();
     void sendModeParam();
+    void sendStatusText(uint8_t severity, const std::string& text);
 
 private:
     struct GeoPoint {

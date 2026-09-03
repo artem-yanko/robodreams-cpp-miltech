@@ -15,6 +15,7 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -91,6 +92,13 @@ static void logDecision(const MissionDecision& decision) {
 static void logImpactEstimate(const MissionDecision& decision) {
     LOG("IMPACT estimate=(" << decision.impactPointX << ", " << decision.impactPointY << ")"
         << ", delta=(" << decision.impactDeltaX << ", " << decision.impactDeltaY << ")");
+}
+
+static std::string autopilotStatusText(const AutopilotController& autopilot) {
+    std::ostringstream output;
+    output << "MODE: " << operatorModeName(autopilot.operatorMode())
+        << ", STATE: " << autopilot.stateName();
+    return output.str();
 }
 
 static void applyDroneCfg(DroneConfig& drone, const MissionState& state) {
@@ -257,6 +265,7 @@ int main(int argc, char* argv[]) {
             ERROR_LOG("Failed to initialize MAVLink UDP");
             return 1;
         }
+        mavlink.sendStatusText(MAV_SEVERITY_INFO, autopilotStatusText(autopilot));
     }
 
     const auto finalizeSimulation = [&](bool allowPublish) {
@@ -352,6 +361,7 @@ int main(int argc, char* argv[]) {
             autopilot.setOperatorMode(mavlinkEvents.requestedMode);
             mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
             mavlink.sendModeParam();
+            mavlink.sendStatusText(MAV_SEVERITY_INFO, autopilotStatusText(autopilot));
         }
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
@@ -370,6 +380,7 @@ int main(int argc, char* argv[]) {
                     state.dropDone = true;
                     logImpactEstimate(decision);
                     LOG("DROP triggered");
+                    mavlink.sendStatusText(MAV_SEVERITY_NOTICE, "DROP triggered");
                     mavlink.startDropCommand(state, decision);
                     finalizeSimulation(true);
                     if (config.stopAfterDrop) {
