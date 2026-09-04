@@ -18,6 +18,7 @@ constexpr double PI = 3.14159265358979323846;
 constexpr double DEG_TO_RAD = PI / 180.0;
 constexpr double RAD_TO_DEG = 180.0 / PI;
 constexpr auto HEARTBEAT_PERIOD = std::chrono::seconds(1);
+constexpr auto GCS_HEARTBEAT_TIMEOUT = std::chrono::seconds(3);
 constexpr auto TELEMETRY_PERIOD = std::chrono::milliseconds(200);
 constexpr auto DROP_ACK_TIMEOUT = std::chrono::milliseconds(500);
 constexpr int MAX_DROP_ATTEMPTS = 5;
@@ -123,6 +124,10 @@ MavlinkEvents MavlinkGateway::poll() {
     mavlink_status_t status{};
     for (uint8_t byte : data) {
         if (!mavlink_parse_char(MAVLINK_COMM_0, byte, &message, &status)) {
+            continue;
+        }
+
+        if (handleGcsHeartbeat(message)) {
             continue;
         }
 
@@ -294,6 +299,31 @@ void MavlinkGateway::sendDropCommand() {
         lastDropAttempt = std::chrono::steady_clock::now();
         LOG("MAVLink drop command sent, attempt " << dropAttempts);
     }
+}
+
+bool MavlinkGateway::handleGcsHeartbeat(const mavlink_message_t& message) {
+    if (message.msgid != MAVLINK_MSG_ID_HEARTBEAT) {
+        return false;
+    }
+
+    mavlink_heartbeat_t heartbeat{};
+    mavlink_msg_heartbeat_decode(&message, &heartbeat);
+    if (heartbeat.type != MAV_TYPE_GCS) {
+        return true;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    const bool connectionRestored = lastGcsHeartbeat.time_since_epoch().count() == 0
+        || now - lastGcsHeartbeat > GCS_HEARTBEAT_TIMEOUT;
+    lastGcsHeartbeat = now;
+
+    if (connectionRestored) {
+        sendModeParam();
+        LOG("MAVLink GCS connected: synchronized CPA_MODE="
+            << (autopilotMode == OperatorMode::Auto ? CPA_MODE_AUTO : CPA_MODE_MANUAL));
+    }
+
+    return true;
 }
 
 bool MavlinkGateway::handleAck(const mavlink_message_t& message) {

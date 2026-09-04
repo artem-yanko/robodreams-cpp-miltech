@@ -43,6 +43,7 @@ private:
     void sendGlobalPosition(const MissionState& state);
     void sendAttitude(const MissionState& state);
     void sendDropCommand();
+    bool handleGcsHeartbeat(const mavlink_message_t& message);
     bool handleAck(const mavlink_message_t& message);
     bool handleSetMode(const mavlink_message_t& message, MavlinkEvents& events);
     bool handleCommandLong(const mavlink_message_t& message, MavlinkEvents& events);
@@ -53,6 +54,7 @@ private:
 
     UdpSocket socket;
     std::chrono::steady_clock::time_point lastHeartbeat{};
+    std::chrono::steady_clock::time_point lastGcsHeartbeat{};
     std::chrono::steady_clock::time_point lastTelemetry{};
     std::chrono::steady_clock::time_point lastDropAttempt{};
     bool initialized{};
