@@ -252,6 +252,8 @@ int main(int argc, char* argv[]) {
     SimulationRecorder recorder(outputPath);
     MavlinkGateway mavlink;
     AutopilotController autopilot;
+    Coord lastLinkPosition{};
+    bool lastLinkPositionAvailable = false;
 
     LOG("Autopilot startup mode: " << operatorModeName(autopilot.operatorMode())
         << ", state=" << autopilot.stateName());
@@ -362,6 +364,27 @@ int main(int argc, char* argv[]) {
             mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
             mavlink.sendModeParam();
             mavlink.sendStatusText(MAV_SEVERITY_INFO, autopilotStatusText(autopilot));
+        }
+
+        if (mavlinkEvents.gcsHeartbeatReceived && state.telemetryReceived) {
+            lastLinkPosition = Coord{state.telemetry.x, state.telemetry.y};
+            lastLinkPositionAvailable = true;
+        }
+
+        if (mavlinkEvents.gcsLost) {
+            if (lastLinkPositionAvailable) {
+                LOG("CONTROL LINK LOST at position=(" << lastLinkPosition.x
+                    << ", " << lastLinkPosition.y << ")");
+            } else {
+                LOG("CONTROL LINK LOST when drone position was unavailable");
+            }
+
+            if (autopilot.handleControlLinkLost()) {
+                mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
+                LOG("CONTROL LINK LOST: MANUAL -> AUTO takeover");
+            } else {
+                LOG("CONTROL LINK LOST: continuing AUTO mission");
+            }
         }
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();

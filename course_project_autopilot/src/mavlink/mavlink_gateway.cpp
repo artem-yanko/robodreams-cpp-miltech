@@ -318,6 +318,7 @@ bool MavlinkGateway::handleGcsHeartbeat(const mavlink_message_t& message, Mavlin
         return true;
     }
 
+    events.gcsHeartbeatReceived = true;
     const auto now = std::chrono::steady_clock::now();
     const bool firstConnection = !gcsEverConnected;
     const bool connectionRestored = gcsEverConnected

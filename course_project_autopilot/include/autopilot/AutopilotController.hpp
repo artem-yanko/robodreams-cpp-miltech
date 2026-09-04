@@ -12,6 +12,7 @@ public:
     ~AutopilotController();
 
     void setOperatorMode(OperatorMode mode);
+    bool handleControlLinkLost();
 
     OperatorMode operatorMode() const;
     const char* stateName() const;

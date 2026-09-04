@@ -35,6 +35,15 @@ void AutopilotController::setOperatorMode(OperatorMode nextMode) {
         << " -> " << stateName());
 }
 
+bool AutopilotController::handleControlLinkLost() {
+    if (mode != OperatorMode::Manual) {
+        return false;
+    }
+
+    setOperatorMode(OperatorMode::Auto);
+    return true;
+}
+
 OperatorMode AutopilotController::operatorMode() const {
     return mode;
 }

@@ -18,6 +18,7 @@ struct MavlinkEvents {
     bool gcsConnected{};
     bool gcsLost{};
     bool gcsRestored{};
+    bool gcsHeartbeatReceived{};
 };
 
 class MavlinkGateway {
