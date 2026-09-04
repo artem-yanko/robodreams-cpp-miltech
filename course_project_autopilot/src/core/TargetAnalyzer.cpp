@@ -5,25 +5,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 
 static const double VERY_LARGE_TIME = 1e18;
 static const int TARGET_PREDICTION_ITERATIONS = 3;
 static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
-static const uint32_t TARGET_STALE_TIMEOUT_MS = 10'000;
-
-static bool isTargetStale(const MissionState& state, std::size_t targetIndex) {
-    if (targetIndex >= state.targets.size() || targetIndex >= state.targetTracks.size()) {
-        return true;
-    }
-
-    const TargetTrack& track = state.targetTracks[targetIndex];
-    if (track.id != state.targets[targetIndex].id) {
-        return true;
-    }
-
-    return state.telemetry.t_ms - track.updatedAtMs > TARGET_STALE_TIMEOUT_MS;
-}
 
 static double calculateTimeToStop(bool isTurning, double currentSpeed, double acceleration, double turnRemainingTime) {
     if (isTurning) {
@@ -280,7 +265,7 @@ bool TargetAnalyzer::evaluateTarget(
     double acceleration,
     bool returningFromManuver
 ) const {
-    if (targetIndex >= state.targets.size() || isTargetStale(state, targetIndex)) {
+    if (!state.isTargetActive(targetIndex)) {
         return false;
     }
 

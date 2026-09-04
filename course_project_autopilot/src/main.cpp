@@ -1,5 +1,6 @@
 #include "autopilot/AutopilotController.hpp"
 #include "autopilot/OperatorMode.hpp"
+#include "autopilot/TargetWaitMonitor.hpp"
 #include "core/ComponentFactory.hpp"
 #include "core/MissionProcessor.hpp"
 #include "domain/mission_state.hpp"
@@ -252,6 +253,7 @@ int main(int argc, char* argv[]) {
     SimulationRecorder recorder(outputPath);
     MavlinkGateway mavlink;
     AutopilotController autopilot;
+    TargetWaitMonitor targetWaitMonitor;
     Coord lastLinkPosition{};
     bool lastLinkPositionAvailable = false;
 
@@ -385,6 +387,20 @@ int main(int argc, char* argv[]) {
             } else {
                 LOG("CONTROL LINK LOST: continuing AUTO mission");
             }
+        }
+
+        TargetWaitEvents targetWaitEvents = targetWaitMonitor.update(
+            state,
+            missionProcessor != nullptr && autopilot.missionEnabled()
+        );
+        if (targetWaitEvents.waitingStarted) {
+            LOG("TARGET WAIT started: no active targets");
+        }
+        if (targetWaitEvents.targetAvailable) {
+            LOG("TARGET WAIT canceled: active target available");
+        }
+        if (targetWaitEvents.waitTimedOut) {
+            LOG("TARGET WAIT timeout after 30 seconds");
         }
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();

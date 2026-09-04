@@ -79,8 +79,10 @@ add_library(cpa_autopilot
     src/autopilot/ManualState.cpp
     src/autopilot/AutoMissionState.cpp
     src/autopilot/FailsafeState.cpp
-    src/autopilot/MissionCompleteState.cpp)
+    src/autopilot/MissionCompleteState.cpp
+    src/autopilot/TargetWaitMonitor.cpp)
 target_include_directories(cpa_autopilot PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(cpa_autopilot PUBLIC cpa_mission_state)
 target_compile_options(cpa_autopilot PRIVATE -Wall -Wextra -pedantic)
 
 add_library(cpa_component_factory src/core/ComponentFactory.cpp)

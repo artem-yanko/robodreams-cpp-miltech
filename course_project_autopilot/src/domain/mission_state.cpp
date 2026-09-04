@@ -2,6 +2,12 @@
 
 #include <cstddef>
 
+namespace {
+
+constexpr uint32_t TARGET_STALE_TIMEOUT_MS = 10'000;
+
+} // namespace
+
 void MissionState::updateTarget(const dlink::TargetPos& target, uint32_t timeMs) {
     lastTargetUpdate = target;
     targetUpdateReceived = true;
@@ -48,4 +54,27 @@ void MissionState::updateTarget(const dlink::TargetPos& target, uint32_t timeMs)
     }
 
     track.updatedAtMs = timeMs;
+}
+
+bool MissionState::isTargetActive(std::size_t targetIndex) const {
+    if (targetIndex >= targets.size() || targetIndex >= targetTracks.size()) {
+        return false;
+    }
+
+    const TargetTrack& track = targetTracks[targetIndex];
+    if (track.id != targets[targetIndex].id) {
+        return false;
+    }
+
+    return telemetry.t_ms - track.updatedAtMs <= TARGET_STALE_TIMEOUT_MS;
+}
+
+bool MissionState::hasActiveTargets() const {
+    for (std::size_t targetIndex = 0; targetIndex < targets.size(); ++targetIndex) {
+        if (isTargetActive(targetIndex)) {
+            return true;
+        }
+    }
+
+    return false;
 }

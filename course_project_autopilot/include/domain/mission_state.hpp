@@ -3,6 +3,7 @@
 #include "domain/types.hpp"
 #include "utils/drone_link.hpp"
 
+#include <cstddef>
 #include <vector>
 
 struct TargetTrack {
@@ -27,4 +28,6 @@ struct MissionState {
     std::vector<TargetTrack> targetTracks{};
 
     void updateTarget(const dlink::TargetPos& target, uint32_t timeMs);
+    bool isTargetActive(std::size_t targetIndex) const;
+    bool hasActiveTargets() const;
 };
