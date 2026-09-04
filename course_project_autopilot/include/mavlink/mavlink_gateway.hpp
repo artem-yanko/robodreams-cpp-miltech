@@ -15,6 +15,9 @@
 struct MavlinkEvents {
     bool modeChangeRequested{};
     OperatorMode requestedMode{OperatorMode::Manual};
+    bool gcsConnected{};
+    bool gcsLost{};
+    bool gcsRestored{};
 };
 
 class MavlinkGateway {
@@ -43,7 +46,7 @@ private:
     void sendGlobalPosition(const MissionState& state);
     void sendAttitude(const MissionState& state);
     void sendDropCommand();
-    bool handleGcsHeartbeat(const mavlink_message_t& message);
+    bool handleGcsHeartbeat(const mavlink_message_t& message, MavlinkEvents& events);
     bool handleAck(const mavlink_message_t& message);
     bool handleSetMode(const mavlink_message_t& message, MavlinkEvents& events);
     bool handleCommandLong(const mavlink_message_t& message, MavlinkEvents& events);
@@ -58,6 +61,8 @@ private:
     std::chrono::steady_clock::time_point lastTelemetry{};
     std::chrono::steady_clock::time_point lastDropAttempt{};
     bool initialized{};
+    bool gcsLinkConnected{};
+    bool gcsEverConnected{};
     bool dropCommandActive{};
     bool dropAckReceived{};
     int dropAttempts{};

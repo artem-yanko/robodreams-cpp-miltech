@@ -127,7 +127,7 @@ MavlinkEvents MavlinkGateway::poll() {
             continue;
         }
 
-        if (handleGcsHeartbeat(message)) {
+        if (handleGcsHeartbeat(message, events)) {
             continue;
         }
 
@@ -160,11 +160,17 @@ MavlinkEvents MavlinkGateway::poll() {
         }
     }
 
+    const auto now = std::chrono::steady_clock::now();
+    if (gcsLinkConnected && now - lastGcsHeartbeat > GCS_HEARTBEAT_TIMEOUT) {
+        gcsLinkConnected = false;
+        events.gcsLost = true;
+        LOG("MAVLink GCS link lost");
+    }
+
     if (!dropCommandActive || dropAckReceived) {
         return events;
     }
 
-    const auto now = std::chrono::steady_clock::now();
     if (now - lastDropAttempt >= DROP_ACK_TIMEOUT) {
         if (dropAttempts >= MAX_DROP_ATTEMPTS) {
             ERROR_LOG("MAVLink drop ACK not received after " << dropAttempts << " attempts");
@@ -301,7 +307,7 @@ void MavlinkGateway::sendDropCommand() {
     }
 }
 
-bool MavlinkGateway::handleGcsHeartbeat(const mavlink_message_t& message) {
+bool MavlinkGateway::handleGcsHeartbeat(const mavlink_message_t& message, MavlinkEvents& events) {
     if (message.msgid != MAVLINK_MSG_ID_HEARTBEAT) {
         return false;
     }
@@ -313,14 +319,24 @@ bool MavlinkGateway::handleGcsHeartbeat(const mavlink_message_t& message) {
     }
 
     const auto now = std::chrono::steady_clock::now();
-    const bool connectionRestored = lastGcsHeartbeat.time_since_epoch().count() == 0
-        || now - lastGcsHeartbeat > GCS_HEARTBEAT_TIMEOUT;
-    lastGcsHeartbeat = now;
+    const bool firstConnection = !gcsEverConnected;
+    const bool connectionRestored = gcsEverConnected
+        && (!gcsLinkConnected || now - lastGcsHeartbeat > GCS_HEARTBEAT_TIMEOUT);
 
-    if (connectionRestored) {
+    lastGcsHeartbeat = now;
+    gcsLinkConnected = true;
+    gcsEverConnected = true;
+
+    if (firstConnection || connectionRestored) {
         sendModeParam();
-        LOG("MAVLink GCS connected: synchronized CPA_MODE="
-            << (autopilotMode == OperatorMode::Auto ? CPA_MODE_AUTO : CPA_MODE_MANUAL));
+        const uint32_t mode = autopilotMode == OperatorMode::Auto ? CPA_MODE_AUTO : CPA_MODE_MANUAL;
+        if (firstConnection) {
+            events.gcsConnected = true;
+            LOG("MAVLink GCS connected: synchronized CPA_MODE=" << mode);
+        } else {
+            events.gcsRestored = true;
+            LOG("MAVLink GCS link restored: synchronized CPA_MODE=" << mode);
+        }
     }
 
     return true;
