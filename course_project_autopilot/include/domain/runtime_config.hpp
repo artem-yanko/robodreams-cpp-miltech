@@ -23,9 +23,12 @@ struct RuntimeConfig {
     unsigned startLine{24};
     unsigned dropLine{23};
     unsigned mavlinkPort{14550};
+    unsigned debugTargetLossAfterSeconds{};
+    unsigned debugTargetLossDurationSeconds{};
     bool publish{};
     bool stopAfterDrop{};
     bool mavlinkEnabled{};
     bool debugAuto{};
+    bool debugTargetLossEnabled{};
     DroneConfig drone{};
 };

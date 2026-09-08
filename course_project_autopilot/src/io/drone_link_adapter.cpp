@@ -45,6 +45,12 @@ bool DroneLinkAdapter::open(const std::string& uartDevice) {
     return true;
 }
 
+void DroneLinkAdapter::configureTargetLoss(uint32_t afterMs, uint32_t durationMs) {
+    debugTargetLossEnabled = true;
+    debugTargetLossAfterMs = afterMs;
+    debugTargetLossDurationMs = durationMs;
+}
+
 int DroneLinkAdapter::pollIncoming(MissionState& state) {
     if (uartFd < 0) {
         return -1;
@@ -87,6 +93,10 @@ int DroneLinkAdapter::pollIncoming(MissionState& state) {
             state.droneCfgReceived = true;
         } else if (type == dlink::PKT_CONFIG) {
         } else if (type == dlink::PKT_TARGET && len == sizeof(dlink::TargetPos)) {
+            if (shouldIgnoreTarget(state.telemetry.t_ms)) {
+                continue;
+            }
+
             dlink::TargetPos target{};
             std::memcpy(&target, payload, sizeof(dlink::TargetPos));
             state.updateTarget(target, state.telemetry.t_ms);
@@ -94,6 +104,24 @@ int DroneLinkAdapter::pollIncoming(MissionState& state) {
     }
 
     return packets;
+}
+
+bool DroneLinkAdapter::shouldIgnoreTarget(uint32_t telemetryTimeMs) {
+    bool shouldIgnore = false;
+    if (debugTargetLossEnabled && telemetryTimeMs >= debugTargetLossAfterMs) {
+        const uint32_t elapsed = telemetryTimeMs - debugTargetLossAfterMs;
+        shouldIgnore = debugTargetLossDurationMs == 0 || elapsed < debugTargetLossDurationMs;
+    }
+
+    if (shouldIgnore && !debugTargetLossActive) {
+        debugTargetLossActive = true;
+        LOG("DEBUG TARGET LOSS started at t_ms=" << telemetryTimeMs);
+    } else if (!shouldIgnore && debugTargetLossActive) {
+        debugTargetLossActive = false;
+        LOG("DEBUG TARGET LOSS ended at t_ms=" << telemetryTimeMs);
+    }
+
+    return shouldIgnore;
 }
 
 bool DroneLinkAdapter::sendControl(float accel, float turnRate) {

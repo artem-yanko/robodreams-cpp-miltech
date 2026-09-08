@@ -165,6 +165,11 @@ static RuntimeConfig parseArgs(int argc, char* argv[]) {
             config.stopAfterDrop = parseBoolArg(argv[++i]);
         } else if (std::strcmp(argv[i], "--debug-auto") == 0) {
             config.debugAuto = true;
+        } else if (std::strcmp(argv[i], "--debug-target-loss-after") == 0 && i + 1 < argc) {
+            config.debugTargetLossAfterSeconds = static_cast<unsigned>(std::stoul(argv[++i]));
+            config.debugTargetLossEnabled = true;
+        } else if (std::strcmp(argv[i], "--debug-target-loss-duration") == 0 && i + 1 < argc) {
+            config.debugTargetLossDurationSeconds = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (std::strcmp(argv[i], "--mavlink") == 0) {
             config.mavlinkEnabled = true;
             if (i + 1 < argc && argv[i + 1][0] != '-') {
@@ -185,6 +190,11 @@ int main(int argc, char* argv[]) {
     std::signal(SIGTERM, handleSignal);
 
     RuntimeConfig config = parseArgs(argc, argv);
+    if (config.debugTargetLossDurationSeconds > 0 && !config.debugTargetLossEnabled) {
+        ERROR_LOG("--debug-target-loss-duration requires --debug-target-loss-after");
+        return 1;
+    }
+
     MissionState state{};
     std::vector<AmmoParams> ammoList;
     bool fallbackConfigLoaded = false;
@@ -207,6 +217,19 @@ int main(int argc, char* argv[]) {
     if (!link || !link->open(config.uartDevice)) {
         ERROR_LOG("Failed to open UART link");
         return 1;
+    }
+
+    if (config.debugTargetLossEnabled) {
+        constexpr unsigned MILLISECONDS_PER_SECOND = 1000;
+        link->configureTargetLoss(
+            config.debugTargetLossAfterSeconds * MILLISECONDS_PER_SECOND,
+            config.debugTargetLossDurationSeconds * MILLISECONDS_PER_SECOND
+        );
+        LOG("Debug target loss configured: after=" << config.debugTargetLossAfterSeconds
+            << " s, duration="
+            << (config.debugTargetLossDurationSeconds > 0
+                ? std::to_string(config.debugTargetLossDurationSeconds) + " s"
+                : "until shutdown"));
     }
 
     std::unique_ptr<GpioController> gpio = ComponentFactory::createGpioController();

@@ -13,6 +13,8 @@ OUTPUT_DIR="${OUTPUT_DIR:-${REPO_DIR}/course_project_autopilot/results}"
 STUDENT_ID="${STUDENT_ID:-1035}"
 PUBLISH="${PUBLISH:-false}"
 DEBUG_AUTO="${DEBUG_AUTO:-true}"
+DEBUG_TARGET_LOSS_AFTER="${DEBUG_TARGET_LOSS_AFTER:-}"
+DEBUG_TARGET_LOSS_DURATION="${DEBUG_TARGET_LOSS_DURATION:-}"
 MAVLINK="${MAVLINK:-false}"
 MAVLINK_HOST="${MAVLINK_HOST:-192.168.56.1}"
 MAVLINK_PORT="${MAVLINK_PORT:-14550}"
@@ -35,6 +37,8 @@ usage() {
     echo "  STUDENT_ID=${STUDENT_ID}"
     echo "  PUBLISH=${PUBLISH}"
     echo "  DEBUG_AUTO=${DEBUG_AUTO}"
+    echo "  DEBUG_TARGET_LOSS_AFTER=${DEBUG_TARGET_LOSS_AFTER}"
+    echo "  DEBUG_TARGET_LOSS_DURATION=${DEBUG_TARGET_LOSS_DURATION}"
     echo "  MAVLINK=${MAVLINK}"
     echo "  MAVLINK_HOST=${MAVLINK_HOST}"
     echo "  MAVLINK_PORT=${MAVLINK_PORT}"
@@ -127,6 +131,14 @@ for test_id in "${TESTS[@]}"; do
 
     if [[ "${DEBUG_AUTO}" == "true" ]]; then
         app_args+=(--debug-auto)
+    fi
+
+    if [[ -n "${DEBUG_TARGET_LOSS_AFTER}" ]]; then
+        app_args+=(--debug-target-loss-after "${DEBUG_TARGET_LOSS_AFTER}")
+    fi
+
+    if [[ -n "${DEBUG_TARGET_LOSS_DURATION}" ]]; then
+        app_args+=(--debug-target-loss-duration "${DEBUG_TARGET_LOSS_DURATION}")
     fi
 
     if [[ "${MAVLINK}" == "true" ]]; then
