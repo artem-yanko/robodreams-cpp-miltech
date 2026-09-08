@@ -3,10 +3,10 @@
 #include "domain/mission_decision.hpp"
 #include "domain/mission_state.hpp"
 #include "domain/runtime_config.hpp"
+#include "core/WaypointNavigator.hpp"
 #include <memory>
 
 class IBallisticSolver;
-class IDroneState;
 
 class MissionProcessor {
 public:
@@ -18,9 +18,8 @@ public:
 private:
     const RuntimeConfig& config;
     std::unique_ptr<IBallisticSolver> solver;
-    std::unique_ptr<IDroneState> droneState;
+    WaypointNavigator navigator;
     DroneMotionState droneMotion;
-    bool stateBootstrapped{};
     bool releasePhaseActive{};
     int releaseTargetIndex{-1};
     bool hasPreviousTelemetry{};

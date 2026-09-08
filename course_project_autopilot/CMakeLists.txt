@@ -55,9 +55,14 @@ target_include_directories(cpa_states PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 target_link_libraries(cpa_states PUBLIC cpa_math_utils)
 target_compile_options(cpa_states PRIVATE -Wall -Wextra -pedantic)
 
+add_library(cpa_waypoint_navigator src/core/WaypointNavigator.cpp)
+target_include_directories(cpa_waypoint_navigator PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(cpa_waypoint_navigator PUBLIC cpa_states)
+target_compile_options(cpa_waypoint_navigator PRIVATE -Wall -Wextra -pedantic)
+
 add_library(cpa_mission_processor src/core/MissionProcessor.cpp)
 target_include_directories(cpa_mission_processor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(cpa_mission_processor PUBLIC cpa_math_utils cpa_states)
+target_link_libraries(cpa_mission_processor PUBLIC cpa_math_utils cpa_waypoint_navigator)
 target_compile_options(cpa_mission_processor PRIVATE -Wall -Wextra -pedantic)
 
 add_library(cpa_target_analyzer src/core/TargetAnalyzer.cpp)

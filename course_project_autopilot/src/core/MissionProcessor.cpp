@@ -1,20 +1,10 @@
 #include "core/MissionProcessor.hpp"
 #include "core/TargetAnalyzer.hpp"
 #include "interfaces/IBallisticSolver.hpp"
-#include "interfaces/IDroneState.hpp"
-#include "states/StateAccelerating.hpp"
-#include "states/StateDecelerating.hpp"
-#include "states/StateMoving.hpp"
-#include "states/StateStopped.hpp"
-#include "states/StateTurning.hpp"
 #include "utils/logger.hpp"
 #include "utils/math_utils.hpp"
 
 #include <cmath>
-#include <cstring>
-
-static const double SPEED_EPSILON = 1e-6;
-static const double SLOW_TURN_THRESHOLD_FACTOR = 3.0;
 
 static double calculateDroneAcceleration(double attackSpeed, double accelerationPath) {
     if (accelerationPath <= 0.0) {
@@ -67,34 +57,8 @@ static void clearLockedTarget(
     droneMotion.currentTargetIndex = -1;
 }
 
-static std::unique_ptr<IDroneState> bootstrapStateFromTelemetry(
-    const dlink::Telemetry& telemetry,
-    const DroneMotionState& droneMotion,
-    const DroneConfig& config
-) {
-    const double angleLeft = std::fabs(calculateAngleDifference(telemetry.dir, droneMotion.desiredDir));
-    const double slowTurnThreshold = config.turnThreshold * SLOW_TURN_THRESHOLD_FACTOR;
-
-    if (telemetry.speed <= SPEED_EPSILON) {
-        if (angleLeft > config.turnThreshold) {
-            return std::make_unique<StateTurning>();
-        }
-        return std::make_unique<StateStopped>();
-    }
-
-    if (angleLeft > slowTurnThreshold) {
-        return std::make_unique<StateDecelerating>();
-    }
-
-    if (telemetry.speed >= config.attackSpeed - SPEED_EPSILON) {
-        return std::make_unique<StateMoving>();
-    }
-
-    return std::make_unique<StateAccelerating>();
-}
-
 MissionProcessor::MissionProcessor(const RuntimeConfig& config, std::unique_ptr<IBallisticSolver> solver)
-    : config(config), solver(std::move(solver)), droneState(std::make_unique<StateStopped>()) {
+    : config(config), solver(std::move(solver)) {
     droneMotion.currentDir = config.drone.initialDir;
     acceleration = calculateDroneAcceleration(config.drone.attackSpeed, config.drone.accelPath);
 }
@@ -130,10 +94,10 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     }
 
     BestTargetResult best{};
-    const bool isTurning = droneState->isTurning();
-    const bool isMoving = droneState->isMoving();
-    const bool isDecelerating = droneState->isDecelerating();
-    const bool isAccelerating = droneState->isAccelerating();
+    const bool isTurning = navigator.isTurning();
+    const bool isMoving = navigator.isMoving();
+    const bool isDecelerating = navigator.isDecelerating();
+    const bool isAccelerating = navigator.isAccelerating();
 
     bool targetSelected = false;
     if (lockedTargetIndex >= 0) {
@@ -251,7 +215,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     const bool releaseReady =
         !headingToManeuver
         && lockedTargetIndex == best.targetIndex
-        && droneState->isMoving()
+        && navigator.isMoving()
         && std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5
         && headingError <= best.releaseTurnThreshold;
 
@@ -283,27 +247,14 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         }
     }
 
-    if (!stateBootstrapped) {
-        droneState = bootstrapStateFromTelemetry(state.telemetry, droneMotion, config.drone);
-        if (std::strcmp(droneState->name(), "Turning") == 0) {
-            droneMotion.turnTargetDir = droneMotion.desiredDir;
-        }
-        stateBootstrapped = true;
-    }
-
-    DroneContext ctx{
-        .telemetry = state.telemetry,
-        .droneMotion = droneMotion,
-        .goal = goal,
-        .config = config.drone,
-        .activeTurnThreshold = config.drone.turnThreshold,
-        .decision = decision
-    };
-
-    std::unique_ptr<IDroneState> nextState = droneState->execute(ctx);
-    if (nextState) {
-        droneState = std::move(nextState);
-    }
+    navigator.update(
+        state.telemetry,
+        droneMotion,
+        goal,
+        config.drone,
+        config.drone.turnThreshold,
+        decision
+    );
 
     double angleError = calculateAngleDifference(state.telemetry.dir, droneMotion.desiredDir);
     decision.angleError = angleError;
@@ -326,7 +277,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         && ballistics.horizontalDistance > 0.0
         && hasPreviousReleaseTelemetry
         && hasNewReleaseTelemetry) {
-        const bool movingForRelease = droneState->isMoving();
+        const bool movingForRelease = navigator.isMoving();
         const bool atAttackSpeedForRelease =
             std::fabs(state.telemetry.speed - config.drone.attackSpeed) <= 0.5;
         const bool headingOkForRelease = headingError <= best.releaseTurnThreshold;
@@ -344,7 +295,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         };
         double nextSignedDistance = signedDistanceToReleaseBoundary(predictedNextPosition, best.dropPoint, best.releaseHeading);
         LOG("RELEASE check: target=" << best.targetIndex
-            << ", state=" << droneState->name()
+            << ", state=" << navigator.stateName()
             << ", moving=" << movingForRelease
             << ", speed=" << state.telemetry.speed
             << ", attackSpeed=" << config.drone.attackSpeed
