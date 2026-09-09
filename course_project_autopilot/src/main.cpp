@@ -1,5 +1,6 @@
 #include "autopilot/AutopilotController.hpp"
 #include "autopilot/OperatorMode.hpp"
+#include "autopilot/ReturnController.hpp"
 #include "autopilot/TargetWaitMonitor.hpp"
 #include "core/ComponentFactory.hpp"
 #include "core/MissionProcessor.hpp"
@@ -277,8 +278,14 @@ int main(int argc, char* argv[]) {
     MavlinkGateway mavlink;
     AutopilotController autopilot;
     TargetWaitMonitor targetWaitMonitor;
+    std::unique_ptr<ReturnController> returnController;
+    Coord homePosition{};
     Coord lastLinkPosition{};
+    bool homePositionAvailable = false;
     bool lastLinkPositionAvailable = false;
+    bool controlLinkConnected = false;
+    bool controlLinkEverConnected = false;
+    uint32_t lastReturnLogMs = 0;
 
     LOG("Autopilot startup mode: " << operatorModeName(autopilot.operatorMode())
         << ", state=" << autopilot.stateName());
@@ -325,6 +332,12 @@ int main(int argc, char* argv[]) {
         if (state.ammoReceived && !ammoLogged) {
             logAmmo(state);
             ammoLogged = true;
+        }
+
+        if (state.telemetryReceived && !homePositionAvailable) {
+            homePosition = Coord{state.telemetry.x, state.telemetry.y};
+            homePositionAvailable = true;
+            LOG("HOME position initialized: (" << homePosition.x << ", " << homePosition.y << ")");
         }
 
         if (state.droneCfgReceived && !droneCfgLogged) {
@@ -384,7 +397,15 @@ int main(int argc, char* argv[]) {
         mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
         mavlink.updateTelemetry(state);
         MavlinkEvents mavlinkEvents = mavlink.poll();
+        if (mavlinkEvents.gcsConnected || mavlinkEvents.gcsRestored) {
+            controlLinkConnected = true;
+            controlLinkEverConnected = true;
+        }
+
         if (mavlinkEvents.modeChangeRequested) {
+            if (mavlinkEvents.requestedMode == OperatorMode::Manual) {
+                returnController.reset();
+            }
             autopilot.setOperatorMode(mavlinkEvents.requestedMode);
             mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
             mavlink.sendModeParam();
@@ -397,6 +418,7 @@ int main(int argc, char* argv[]) {
         }
 
         if (mavlinkEvents.gcsLost) {
+            controlLinkConnected = false;
             if (lastLinkPositionAvailable) {
                 LOG("CONTROL LINK LOST at position=(" << lastLinkPosition.x
                     << ", " << lastLinkPosition.y << ")");
@@ -412,6 +434,17 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        if (mavlinkEvents.gcsRestored && autopilot.handleControlLinkRestored()) {
+            returnController.reset();
+            mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
+            mavlink.sendModeParam();
+            mavlink.sendStatusText(MAV_SEVERITY_INFO, "CONTROL LINK RESTORED: MANUAL");
+            if (!link->sendControl(0.0f, 0.0f)) {
+                ERROR_LOG("Failed to send neutral CONTROL after GCS restore");
+            }
+            LOG("CONTROL LINK RESTORED: FAILSAFE_RETURN -> MANUAL");
+        }
+
         TargetWaitEvents targetWaitEvents = targetWaitMonitor.update(
             state,
             missionProcessor != nullptr && autopilot.missionEnabled()
@@ -424,6 +457,28 @@ int main(int argc, char* argv[]) {
         }
         if (targetWaitEvents.waitTimedOut) {
             LOG("TARGET WAIT timeout after 30 seconds");
+        }
+
+        if (autopilot.missionEnabled()
+            && targetWaitMonitor.timeoutReached()
+            && controlLinkEverConnected
+            && !controlLinkConnected) {
+            const Coord* returnDestination = nullptr;
+            const char* destinationName = nullptr;
+            if (lastLinkPositionAvailable) {
+                returnDestination = &lastLinkPosition;
+                destinationName = "last link position";
+            } else if (homePositionAvailable) {
+                returnDestination = &homePosition;
+                destinationName = "home position";
+            }
+
+            if (returnDestination != nullptr && autopilot.enterFailsafeReturn()) {
+                returnController = std::make_unique<ReturnController>(config.drone, *returnDestination);
+                mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
+                LOG("FAILSAFE RETURN started: destination=" << destinationName
+                    << " (" << returnDestination->x << ", " << returnDestination->y << ")");
+            }
         }
 
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
@@ -449,6 +504,30 @@ int main(int argc, char* argv[]) {
                         return 0;
                     }
                 }
+            }
+
+            lastControlSend = now;
+        } else if (returnController && autopilot.returnEnabled() && now - lastControlSend >= controlPeriod) {
+            ReturnControlResult result = returnController->update(state);
+            recorder.record(state, result.decision);
+            if (!link->sendControl(result.decision.accel, result.decision.turnRate)) {
+                ERROR_LOG("Failed to send failsafe return CONTROL");
+            }
+
+            if (state.telemetry.t_ms >= lastReturnLogMs + 1000) {
+                LOG("FAILSAFE RETURN distance=" << result.distanceToDestination
+                    << ", navigationState=" << returnController->navigationStateName()
+                    << ", accel=" << result.decision.accel
+                    << ", turnRate=" << result.decision.turnRate);
+                lastReturnLogMs = state.telemetry.t_ms;
+            }
+
+            if (result.arrived && autopilot.completeReturn()) {
+                mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
+                mavlink.sendStatusText(MAV_SEVERITY_INFO, "RETURN COMPLETE");
+                LOG("FAILSAFE RETURN completed");
+                finalizeSimulation(false);
+                returnController.reset();
             }
 
             lastControlSend = now;

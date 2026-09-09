@@ -8,18 +8,29 @@
 
 class IDroneState;
 
+struct WaypointNavigationOptions {
+    bool stopAtGoal{};
+    double arrivalRadius{};
+};
+
+struct WaypointNavigationResult {
+    bool arrived{};
+    double distanceToGoal{};
+};
+
 class WaypointNavigator {
 public:
     WaypointNavigator();
     ~WaypointNavigator();
 
-    void update(
+    WaypointNavigationResult update(
         const dlink::Telemetry& telemetry,
         DroneMotionState& droneMotion,
         const Coord& goal,
         const DroneConfig& config,
         double activeTurnThreshold,
-        MissionDecision& decision
+        MissionDecision& decision,
+        const WaypointNavigationOptions& options = {}
     );
 
     const char* stateName() const;
@@ -31,4 +42,5 @@ public:
 private:
     std::unique_ptr<IDroneState> state;
     bool stateBootstrapped{};
+    bool stoppingAtGoal{};
 };

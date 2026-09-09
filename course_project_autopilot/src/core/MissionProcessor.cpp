@@ -6,13 +6,6 @@
 
 #include <cmath>
 
-static double calculateDroneAcceleration(double attackSpeed, double accelerationPath) {
-    if (accelerationPath <= 0.0) {
-        return 0.0;
-    }
-    return attackSpeed * attackSpeed / (2.0 * accelerationPath);
-}
-
 static bool isInsideRadius(const Coord& point, const Coord& center, double radius) {
     return distanceBetween(point, center) <= radius;
 }

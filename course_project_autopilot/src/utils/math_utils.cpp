@@ -32,3 +32,11 @@ double calculateAngleDifference(double currentDir, double targetDir) {
 
     return delta;
 }
+
+double calculateDroneAcceleration(double attackSpeed, double accelerationPath) {
+    if (accelerationPath <= 0.0) {
+        return 0.0;
+    }
+
+    return attackSpeed * attackSpeed / (2.0 * accelerationPath);
+}

@@ -11,3 +11,7 @@ bool FailsafeState::missionEnabled() const {
 bool FailsafeState::dropAllowed() const {
     return false;
 }
+
+bool FailsafeState::returnEnabled() const {
+    return true;
+}

@@ -1,8 +1,10 @@
 #include "autopilot/AutopilotController.hpp"
 
 #include "autopilot/AutoMissionState.hpp"
+#include "autopilot/FailsafeState.hpp"
 #include "autopilot/IAutopilotState.hpp"
 #include "autopilot/ManualState.hpp"
+#include "autopilot/MissionCompleteState.hpp"
 #include "utils/logger.hpp"
 
 AutopilotController::AutopilotController()
@@ -44,6 +46,37 @@ bool AutopilotController::handleControlLinkLost() {
     return true;
 }
 
+bool AutopilotController::handleControlLinkRestored() {
+    if (!returnEnabled()) {
+        return false;
+    }
+
+    setOperatorMode(OperatorMode::Manual);
+    return true;
+}
+
+bool AutopilotController::enterFailsafeReturn() {
+    if (mode != OperatorMode::Auto || returnEnabled()) {
+        return false;
+    }
+
+    const char* previousStateName = stateName();
+    transitionToFailsafe();
+    LOG("Autopilot state changed: " << previousStateName << " -> " << stateName());
+    return true;
+}
+
+bool AutopilotController::completeReturn() {
+    if (!returnEnabled()) {
+        return false;
+    }
+
+    const char* previousStateName = stateName();
+    transitionToMissionComplete();
+    LOG("Autopilot state changed: " << previousStateName << " -> " << stateName());
+    return true;
+}
+
 OperatorMode AutopilotController::operatorMode() const {
     return mode;
 }
@@ -60,10 +93,22 @@ bool AutopilotController::dropAllowed() const {
     return state && state->dropAllowed();
 }
 
+bool AutopilotController::returnEnabled() const {
+    return state && state->returnEnabled();
+}
+
 void AutopilotController::transitionToManual() {
     state = std::make_unique<ManualState>();
 }
 
 void AutopilotController::transitionToAutoMission() {
     state = std::make_unique<AutoMissionState>();
+}
+
+void AutopilotController::transitionToFailsafe() {
+    state = std::make_unique<FailsafeState>();
+}
+
+void AutopilotController::transitionToMissionComplete() {
+    state = std::make_unique<MissionCompleteState>();
 }
