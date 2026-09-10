@@ -4,6 +4,7 @@ build-*/
 out/
 install/
 log/
+course_project_autopilot/demo_logs/
 c_library_v2/
 
 # CMake генерує ці файли при in-source або ручних локальних збірках.

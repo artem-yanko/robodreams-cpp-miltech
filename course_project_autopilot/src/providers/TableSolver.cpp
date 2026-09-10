@@ -154,7 +154,7 @@ BallisticsResult TableSolver::solve(const DroneConfig& config, const AmmoParams&
     result.flightTime = tableResult.t;
     result.horizontalDistance = tableResult.hDist;
 
-    LOG("Table ballistics calculated: flightTime=" << result.flightTime
+    DEBUG("Table ballistics calculated: flightTime=" << result.flightTime
         << ", horizontalDistance=" << result.horizontalDistance);
 
     return result;

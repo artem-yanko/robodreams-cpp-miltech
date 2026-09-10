@@ -61,7 +61,9 @@ bool UdpSocket::open(const std::string& host, uint16_t port) {
 bool UdpSocket::sendBytes(const uint8_t* data, size_t size) {
     ssize_t sent = send(fd, data, size, 0);
     if (sent != static_cast<ssize_t>(size)) {
-        ERROR_LOG("Failed to send UDP packet: " << std::strerror(errno));
+        if (errno != ECONNREFUSED) {
+            ERROR_LOG("Failed to send UDP packet: " << std::strerror(errno));
+        }
         return false;
     }
 
@@ -72,7 +74,7 @@ std::vector<uint8_t> UdpSocket::receiveBytes() {
     std::vector<uint8_t> buffer(2048);
     ssize_t received = recv(fd, buffer.data(), buffer.size(), 0);
     if (received < 0) {
-        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ECONNREFUSED) {
             ERROR_LOG("Failed to receive UDP packet: " << std::strerror(errno));
         }
         return {};

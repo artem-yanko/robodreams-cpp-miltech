@@ -152,7 +152,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     droneMotion.currentTargetIndex = best.targetIndex;
 
     if (releasePhaseActive && best.targetIndex != releaseTargetIndex) {
-        LOG("RELEASE phase reset: current target=" << best.targetIndex
+        DEBUG("RELEASE phase reset: current target=" << best.targetIndex
             << ", release target=" << releaseTargetIndex
             << ", reason=target changed");
         releasePhaseActive = false;
@@ -214,7 +214,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
 
     if (releaseReady) {
         if (!releasePhaseActive || releaseTargetIndex != best.targetIndex) {
-            LOG("RELEASE phase entered: target=" << best.targetIndex
+            DEBUG("RELEASE phase entered: target=" << best.targetIndex
                 << ", dropPoint=(" << best.dropPoint.x << ", " << best.dropPoint.y << ")"
                 << ", releaseHeading=" << best.releaseHeading
                 << ", headingError=" << headingError
@@ -253,7 +253,7 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
     decision.angleError = angleError;
 
     if (releasePhaseActive && !hasNewTelemetry) {
-        LOG("RELEASE waiting: target=" << best.targetIndex
+        DEBUG("RELEASE waiting: target=" << best.targetIndex
             << ", reason=no new telemetry"
             << ", dropPoint=(" << best.dropPoint.x << ", " << best.dropPoint.y << ")"
             << ", releaseHeading=" << best.releaseHeading);
@@ -287,9 +287,9 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
             dronePosition.y + std::sin(state.telemetry.dir) * state.telemetry.speed * predictionDt
         };
         double nextSignedDistance = signedDistanceToReleaseBoundary(predictedNextPosition, best.dropPoint, best.releaseHeading);
-        LOG("RELEASE check: target=" << best.targetIndex
+        DEBUG("RELEASE check: target=" << best.targetIndex
             << ", state=" << navigator.stateName()
-            << ", moving=" << movingForRelease
+            << ", movingForRelease=" << movingForRelease
             << ", speed=" << state.telemetry.speed
             << ", attackSpeed=" << config.drone.attackSpeed
             << ", headingError=" << headingError
@@ -304,13 +304,13 @@ MissionDecision MissionProcessor::update(const MissionState& state) {
         if ((previousSignedDistance < 0.0 && currentSignedDistance >= 0.0)
             || (currentSignedDistance < 0.0 && nextSignedDistance >= 0.0)) {
             if (!movingForRelease || !atAttackSpeedForRelease || !headingOkForRelease) {
-                LOG("RELEASE boundary crossed with soft guard miss: target=" << best.targetIndex
+                DEBUG("RELEASE boundary crossed with soft guard miss: target=" << best.targetIndex
                     << ", moving=" << movingForRelease
                     << ", atAttackSpeed=" << atAttackSpeedForRelease
                     << ", headingOk=" << headingOkForRelease);
             }
             if (currentSignedDistance < 0.0 && nextSignedDistance >= 0.0) {
-                LOG("RELEASE predictive trigger: target=" << best.targetIndex
+                DEBUG("RELEASE predictive trigger: target=" << best.targetIndex
                     << ", currentSignedDistance=" << currentSignedDistance
                     << ", nextSignedDistance=" << nextSignedDistance
                     << ", predictionDt=" << predictionDt);
