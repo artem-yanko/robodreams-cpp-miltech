@@ -66,6 +66,17 @@ bool AutopilotController::enterFailsafeReturn() {
     return true;
 }
 
+bool AutopilotController::completeMission() {
+    if (mode != OperatorMode::Auto || !missionEnabled()) {
+        return false;
+    }
+
+    const char* previousStateName = stateName();
+    transitionToMissionComplete();
+    LOG("Autopilot state changed: " << previousStateName << " -> " << stateName());
+    return true;
+}
+
 bool AutopilotController::completeReturn() {
     if (!returnEnabled()) {
         return false;

@@ -499,6 +499,14 @@ int main(int argc, char* argv[]) {
                     LOG("DROP triggered");
                     mavlink.sendStatusText(MAV_SEVERITY_NOTICE, "DROP triggered");
                     mavlink.startDropCommand(state, decision);
+                    if (autopilot.completeMission()) {
+                        mavlink.updateAutopilotStatus(autopilot.operatorMode(), autopilot.stateName());
+                        mavlink.sendStatusText(MAV_SEVERITY_INFO, "MISSION COMPLETE");
+                        if (!link->sendControl(0.0f, 0.0f)) {
+                            ERROR_LOG("Failed to send neutral CONTROL after mission completion");
+                        }
+                        LOG("AUTO mission completed");
+                    }
                     finalizeSimulation(true);
                     if (config.stopAfterDrop) {
                         return 0;

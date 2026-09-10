@@ -15,6 +15,7 @@ public:
     bool handleControlLinkLost();
     bool handleControlLinkRestored();
     bool enterFailsafeReturn();
+    bool completeMission();
     bool completeReturn();
 
     OperatorMode operatorMode() const;
