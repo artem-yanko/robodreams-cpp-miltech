@@ -1,0 +1,34 @@
+#pragma once
+
+#include "domain/types.hpp"
+#include <string>
+
+enum RunMode {
+    SIM_MODE,
+    HW_MODE
+};
+
+struct RuntimeConfig {
+    RunMode mode{SIM_MODE};
+    std::string uartDevice{"/tmp/ttyA"};
+    std::string gpioChip{"gpiochip1"};
+    std::string simBank{};
+    std::string configPath{};
+    std::string ammoPath{};
+    std::string ballisticTablePath{};
+    std::string outputDir{"results"};
+    std::string testId{"T01"};
+    std::string studentId{"1035"};
+    std::string mavlinkHost{"127.0.0.1"};
+    unsigned startLine{24};
+    unsigned dropLine{23};
+    unsigned mavlinkPort{14550};
+    unsigned debugTargetLossAfterSeconds{};
+    unsigned debugTargetLossDurationSeconds{};
+    bool publish{};
+    bool stopAfterDrop{};
+    bool mavlinkEnabled{};
+    bool debugAuto{};
+    bool debugTargetLossEnabled{};
+    DroneConfig drone{};
+};
